@@ -1,0 +1,13 @@
+{
+  "appId": "com.moneysaver.app",
+  "appName": "Money Saver",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 0
+    }
+  }
+}

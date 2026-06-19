@@ -1,0 +1,15 @@
+{
+  "name": "money-saver",
+  "version": "1.0.0",
+  "description": "A money-saving and budget projection app",
+  "private": true,
+  "scripts": {
+    "sync": "cap sync",
+    "open:android": "cap open android",
+    "open:ios": "cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/core": "^8.4.1"
+  }
+}
