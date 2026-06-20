@@ -275,6 +275,12 @@
 
     .chart-card { margin-bottom: 0; }
     .chart-card--donut canvas { max-height: 220px; }
+    .footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.78rem;
+      padding: 40px 0 8px;
+    }
   </style>
 </head>
 <body>
@@ -672,5 +678,10 @@
     window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js"));
   }
 </script>
+
+<footer class="footer">
+  &copy; <span id="yr"></span> Pence. All rights reserved.
+  <script>document.getElementById("yr").textContent = new Date().getFullYear();</script>
+</footer>
 </body>
 </html>
