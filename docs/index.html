@@ -373,8 +373,8 @@
           <input type="number" id="hourly" min="0" step="0.01" value="14" />
         </div>
         <div class="field">
-          <label>Shift premium (£/hr)</label>
-          <input type="number" id="shiftRate" min="0" step="0.01" value="0" />
+          <label>Shift premium (%)</label>
+          <input type="number" id="shiftRate" min="0" max="200" step="1" value="0" placeholder="e.g. 25" />
         </div>
       </div>
       <div class="row2">
@@ -607,8 +607,8 @@
     const goalRaw     = get("goal");
     const goal        = goalRaw > 0 ? goalRaw : null;
 
-    const shiftRate    = get("shiftRate");
-    const grossWeek    = (hourly + shiftRate) * baseHours + hourly * otMult * otHours;
+    const shiftPct     = get("shiftRate");
+    const grossWeek    = hourly * (1 + shiftPct / 100) * baseHours + hourly * otMult * otHours;
     const grossMonth   = grossWeek * (WEEKS_PER_YEAR / MONTHS_PER_YEAR);
     const netMonth     = grossMonth * (1 - taxPct / 100);
     const isaMonth     = isaWeekly * (WEEKS_PER_YEAR / MONTHS_PER_YEAR);
