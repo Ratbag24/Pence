@@ -233,7 +233,7 @@
 
     /* Hide less critical columns on small screens */
     @media (max-width: 540px) {
-      .col-gross, .col-net, .col-exp { display: none; }
+      .col-gross, .col-net, .col-exp, .col-interest { display: none; }
     }
 
     .badge-goal {
@@ -310,6 +310,10 @@
         <label>Starting savings (£)</label>
         <input type="number" id="startSavings" min="0" step="1" value="500" />
       </div>
+      <div class="field">
+        <label>Annual savings interest rate (%) — e.g. 4.5 for a cash ISA</label>
+        <input type="number" id="interestRate" min="0" max="100" step="0.1" value="0" />
+      </div>
       <div class="row2">
         <div class="field">
           <label>Months to project</label>
@@ -347,6 +351,7 @@
               <th class="col-net">Net (£)</th>
               <th class="col-exp">Expenses (£)</th>
               <th>Leftover (£)</th>
+              <th class="col-interest">Interest (£)</th>
               <th>Savings (£)</th>
             </tr>
           </thead>
@@ -391,18 +396,21 @@
     const loans       = get("loans");
     const isaWeekly   = get("isaWeekly");
     const startSav    = get("startSavings");
+    const interestRate = get("interestRate");
     const months      = getInt("months");
     const goalRaw     = get("goal");
     const goal        = goalRaw > 0 ? goalRaw : null;
 
-    const grossWeek   = hourly * baseHours + hourly * otMult * otHours;
-    const grossMonth  = grossWeek * (WEEKS_PER_YEAR / MONTHS_PER_YEAR);
-    const netMonth    = grossMonth * (1 - taxPct / 100);
-    const isaMonth    = isaWeekly * (WEEKS_PER_YEAR / MONTHS_PER_YEAR);
-    const totalExp    = outgoings + loans + isaMonth;
-    const leftover    = netMonth - totalExp;
+    const grossWeek    = hourly * baseHours + hourly * otMult * otHours;
+    const grossMonth   = grossWeek * (WEEKS_PER_YEAR / MONTHS_PER_YEAR);
+    const netMonth     = grossMonth * (1 - taxPct / 100);
+    const isaMonth     = isaWeekly * (WEEKS_PER_YEAR / MONTHS_PER_YEAR);
+    const totalExp     = outgoings + loans + isaMonth;
+    const leftover     = netMonth - totalExp;
+    const monthlyRate  = Math.pow(1 + interestRate / 100, 1 / 12) - 1;
 
-    // KPIs
+    // KPIs (interest earned filled in after projection loop)
+    const kpiGrid = document.getElementById("kpi-grid");
     const kpis = [
       { label: "Gross / month",   value: `£${fmt(grossMonth)}`, cls: "" },
       { label: "Net / month",     value: `£${fmt(netMonth)}`,   cls: "" },
@@ -412,16 +420,11 @@
       { label: "Starting savings",value: `£${fmt(startSav)}`,   cls: "" },
     ];
 
-    const kpiGrid = document.getElementById("kpi-grid");
-    kpiGrid.innerHTML = kpis.map(k =>
-      `<div class="kpi"><div class="kpi-label">${k.label}</div>
-       <div class="kpi-value ${k.cls}">${k.value}</div></div>`
-    ).join("");
-
     // Projection
     const today = new Date();
     let savings = startSav;
     let goalHitMonth = null;
+    let totalInterest = 0;
     const rows = [];
     const labels = [];
     const savingsData = [savings];
@@ -429,7 +432,9 @@
     labels.push(monthLabel(today));
 
     for (let m = 1; m <= months; m++) {
-      savings += leftover;
+      const interestEarned = (savings + leftover) * monthlyRate;
+      savings += leftover + interestEarned;
+      totalInterest += interestEarned;
       const dt = addMonths(today, m);
       labels.push(monthLabel(dt));
       savingsData.push(savings);
@@ -438,8 +443,17 @@
         goalHitMonth = { m, date: dt };
       }
 
-      rows.push({ m, dt, grossMonth, netMonth, totalExp, leftover, savings });
+      rows.push({ m, dt, grossMonth, netMonth, totalExp, leftover, interestEarned, savings });
     }
+
+    if (interestRate > 0) {
+      kpis.push({ label: "Interest earned", value: `£${fmt(totalInterest)}`, cls: "green" });
+    }
+
+    kpiGrid.innerHTML = kpis.map(k =>
+      `<div class="kpi"><div class="kpi-label">${k.label}</div>
+       <div class="kpi-value ${k.cls}">${k.value}</div></div>`
+    ).join("");
 
     // Goal banner
     const banner = document.getElementById("goal-banner");
@@ -510,6 +524,7 @@
         <td class="col-net">£${fmt(r.netMonth)}</td>
         <td class="col-exp">£${fmt(r.totalExp)}</td>
         <td class="${neg}">£${fmt(r.leftover)}</td>
+        <td class="col-interest" style="color:var(--green)">£${fmt(r.interestEarned)}</td>
         <td>£${fmt(r.savings)}</td>
       </tr>`;
     }).join("");
@@ -517,7 +532,7 @@
     document.getElementById("results").classList.add("visible");
   });
 
-  const INPUT_IDS = ["hourly","baseHours","otHours","otMult","taxPct","outgoings","loans","isaWeekly","startSavings","months","goal"];
+  const INPUT_IDS = ["hourly","baseHours","otHours","otMult","taxPct","outgoings","loans","isaWeekly","startSavings","interestRate","months","goal"];
 
   function saveInputs() {
     const data = {};
