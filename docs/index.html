@@ -275,6 +275,76 @@
 
     .chart-card { margin-bottom: 0; }
     .chart-card--donut canvas { max-height: 220px; }
+    .extra-row {
+      display: grid;
+      grid-template-columns: 1fr 90px 130px 32px;
+      gap: 8px;
+      margin-bottom: 10px;
+      align-items: center;
+    }
+
+    @media (max-width: 420px) {
+      .extra-row { grid-template-columns: 1fr 80px; grid-template-rows: auto auto; }
+      .extra-row select { grid-column: 1; }
+      .extra-row .remove-btn { grid-column: 2; grid-row: 2; }
+    }
+
+    .extra-row input[type="text"] {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 16px;
+      padding: 10px 12px;
+      outline: none;
+      transition: border-color 0.15s;
+      width: 100%;
+    }
+
+    .extra-row input[type="text"]:focus { border-color: var(--accent); }
+
+    .extra-row select {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 14px;
+      padding: 10px 8px;
+      outline: none;
+      width: 100%;
+      cursor: pointer;
+    }
+
+    .remove-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 1.1rem;
+      cursor: pointer;
+      padding: 6px;
+      line-height: 1;
+      transition: color 0.15s, border-color 0.15s;
+    }
+
+    .remove-btn:hover { color: var(--red); border-color: var(--red); }
+
+    .add-income-btn {
+      width: 100%;
+      margin-top: 4px;
+      padding: 10px;
+      background: transparent;
+      color: var(--accent);
+      font-size: 0.9rem;
+      font-weight: 600;
+      border: 1px dashed var(--border);
+      border-radius: 9px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+
+    .add-income-btn:hover { border-color: var(--accent); }
+
     .footer {
       text-align: center;
       color: var(--muted);
@@ -394,6 +464,12 @@
       </div>
     </div>
 
+    <div class="card">
+      <div class="section-title">Additional Income</div>
+      <div id="extra-income-list"></div>
+      <button type="button" class="add-income-btn" onclick="addExtraIncome()">+ Add income source</button>
+    </div>
+
     <button id="calc-btn">Calculate</button>
   </div>
 
@@ -440,6 +516,46 @@
 <script>
   const WEEKS_PER_YEAR = 52;
   const MONTHS_PER_YEAR = 12;
+
+  // Additional income sources
+  let extraIncomes = [
+    { label: "Child benefits", amount: 0, freqMonths: 1 },
+    { label: "Solar panel",    amount: 0, freqMonths: 3 },
+  ];
+
+  function renderExtraIncomes() {
+    const FREQ_OPTIONS = [
+      { v: "0",  t: "Weekly" },
+      { v: "1",  t: "Monthly" },
+      { v: "3",  t: "Every 3 months" },
+      { v: "6",  t: "Every 6 months" },
+      { v: "12", t: "Yearly" },
+    ];
+    document.getElementById("extra-income-list").innerHTML = extraIncomes.map((inc, i) => `
+      <div class="extra-row">
+        <input type="text" value="${inc.label}" placeholder="Label"
+               oninput="extraIncomes[${i}].label=this.value; saveAll();" />
+        <input type="number" min="0" step="1" value="${inc.amount || ''}" placeholder="£0"
+               oninput="extraIncomes[${i}].amount=parseFloat(this.value)||0; saveAll(); document.getElementById('calc-btn').click();" />
+        <select onchange="extraIncomes[${i}].freqMonths=parseInt(this.value); saveAll(); document.getElementById('calc-btn').click();">
+          ${FREQ_OPTIONS.map(o => `<option value="${o.v}" ${String(inc.freqMonths)===o.v?"selected":""}>${o.t}</option>`).join("")}
+        </select>
+        <button class="remove-btn" onclick="removeExtraIncome(${i})">×</button>
+      </div>`).join("");
+  }
+
+  function addExtraIncome() {
+    extraIncomes.push({ label: "", amount: 0, freqMonths: 1 });
+    renderExtraIncomes();
+    saveAll();
+  }
+
+  function removeExtraIncome(i) {
+    extraIncomes.splice(i, 1);
+    renderExtraIncomes();
+    saveAll();
+    document.getElementById("calc-btn").click();
+  }
 
   function fmt(n) {
     return n.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -527,8 +643,18 @@
     labels.push(monthLabel(today));
 
     for (let m = 1; m <= months; m++) {
-      const interestEarned = (savings + leftover) * monthlyRate;
-      savings += leftover + interestEarned;
+      let extraThisMonth = 0;
+      extraIncomes.forEach(inc => {
+        const amt = inc.amount || 0;
+        if (inc.freqMonths === 0) {
+          extraThisMonth += amt * (WEEKS_PER_YEAR / MONTHS_PER_YEAR);
+        } else if (m % inc.freqMonths === 0) {
+          extraThisMonth += amt;
+        }
+      });
+
+      const interestEarned = (savings + leftover + extraThisMonth) * monthlyRate;
+      savings += leftover + extraThisMonth + interestEarned;
       totalInterest += interestEarned;
       const dt = addMonths(today, m);
       labels.push(monthLabel(dt));
@@ -538,7 +664,7 @@
         goalHitMonth = { m, date: dt };
       }
 
-      rows.push({ m, dt, grossMonth, netMonth, totalExp, leftover, interestEarned, savings });
+      rows.push({ m, dt, grossMonth, netMonth, totalExp, leftover, extraThisMonth, interestEarned, savings });
     }
 
     if (interestRate > 0) {
@@ -652,31 +778,35 @@
 
   const INPUT_IDS = ["hourly","shiftRate","baseHours","otHours","otMult","taxPct","exp_rent","exp_food","exp_utils","exp_transport","exp_subs","exp_other","loans","isaWeekly","startSavings","interestRate","months","goal"];
 
-  function saveInputs() {
+  function saveAll() {
     const data = {};
     INPUT_IDS.forEach(id => data[id] = document.getElementById(id).value);
     localStorage.setItem("pence_inputs", JSON.stringify(data));
+    localStorage.setItem("pence_extra_incomes", JSON.stringify(extraIncomes));
   }
 
-  function loadInputs() {
+  function loadAll() {
     try {
       const data = JSON.parse(localStorage.getItem("pence_inputs"));
-      if (!data) return false;
-      INPUT_IDS.forEach(id => { if (data[id] !== undefined) document.getElementById(id).value = data[id]; });
-      return true;
-    } catch { return false; }
+      if (data) INPUT_IDS.forEach(id => { if (data[id] !== undefined) document.getElementById(id).value = data[id]; });
+    } catch {}
+    try {
+      const extra = JSON.parse(localStorage.getItem("pence_extra_incomes"));
+      if (Array.isArray(extra) && extra.length) extraIncomes = extra;
+    } catch {}
   }
 
-  // Load saved inputs or fall back to defaults, then calculate
-  loadInputs();
+  // Load saved data, render extra incomes, then calculate
+  loadAll();
+  renderExtraIncomes();
   updateExpTotal();
   document.getElementById("calc-btn").click();
 
   // Live recalculate and save as user types
-  document.querySelectorAll("input").forEach(el => {
+  document.querySelectorAll("input:not(#extra-income-list input)").forEach(el => {
     el.addEventListener("input", () => {
       updateExpTotal();
-      saveInputs();
+      saveAll();
       document.getElementById("calc-btn").click();
     });
   });
