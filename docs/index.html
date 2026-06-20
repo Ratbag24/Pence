@@ -487,15 +487,19 @@
     const leftover     = netMonth - totalExp;
     const monthlyRate  = Math.pow(1 + interestRate / 100, 1 / 12) - 1;
 
-    // KPIs (interest earned filled in after projection loop)
+    const grossYear = grossMonth * MONTHS_PER_YEAR;
+    const netYear   = netMonth   * MONTHS_PER_YEAR;
+    const taxPaid   = grossYear  - netYear;
+
+    // KPIs (interest earned appended after projection loop)
     const kpiGrid = document.getElementById("kpi-grid");
     const kpis = [
+      { label: "Gross / year",    value: `£${fmt(grossYear)}`,  cls: "" },
+      { label: "Tax & NI / year", value: `£${fmt(taxPaid)}`,    cls: "red" },
+      { label: "Net / year",      value: `£${fmt(netYear)}`,    cls: "" },
       { label: "Gross / month",   value: `£${fmt(grossMonth)}`, cls: "" },
       { label: "Net / month",     value: `£${fmt(netMonth)}`,   cls: "" },
-      { label: "Total expenses",  value: `£${fmt(totalExp)}`,   cls: "" },
       { label: "Monthly leftover",value: `£${fmt(leftover)}`,   cls: leftover < 0 ? "red" : "green" },
-      { label: "ISA / month",     value: `£${fmt(isaMonth)}`,   cls: "" },
-      { label: "Starting savings",value: `£${fmt(startSav)}`,   cls: "" },
     ];
 
     // Projection
