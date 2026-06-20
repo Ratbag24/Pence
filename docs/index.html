@@ -248,6 +248,33 @@
     }
 
     .neg { color: var(--red); }
+
+    .exp-total {
+      font-size: 0.85rem;
+      color: var(--muted);
+      padding: 10px 0 2px;
+      border-top: 1px solid var(--border);
+      margin-top: 4px;
+    }
+
+    .exp-total span {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .charts-row {
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    @media (max-width: 700px) {
+      .charts-row { grid-template-columns: 1fr; }
+    }
+
+    .chart-card { margin-bottom: 0; }
+    .chart-card--donut canvas { max-height: 220px; }
   </style>
 </head>
 <body>
@@ -290,11 +317,40 @@
 
     <div class="card">
       <div class="section-title">Monthly Expenses</div>
-      <div class="field">
-        <label>Fixed outgoings — rent, bills, subs (£/month)</label>
-        <input type="number" id="outgoings" min="0" step="1" value="900" />
+      <div class="row2">
+        <div class="field">
+          <label>Rent / Mortgage</label>
+          <input type="number" id="exp_rent" min="0" step="1" value="750" />
+        </div>
+        <div class="field">
+          <label>Food & Groceries</label>
+          <input type="number" id="exp_food" min="0" step="1" value="200" />
+        </div>
       </div>
-      <div class="field">
+      <div class="row2">
+        <div class="field">
+          <label>Utilities</label>
+          <input type="number" id="exp_utils" min="0" step="1" value="100" />
+        </div>
+        <div class="field">
+          <label>Transport</label>
+          <input type="number" id="exp_transport" min="0" step="1" value="80" />
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Subscriptions</label>
+          <input type="number" id="exp_subs" min="0" step="1" value="30" />
+        </div>
+        <div class="field">
+          <label>Other</label>
+          <input type="number" id="exp_other" min="0" step="1" value="0" />
+        </div>
+      </div>
+      <div class="exp-total">
+        Total outgoings: <span id="exp-total-val">£0.00</span>
+      </div>
+      <div class="field" style="margin-top:14px">
         <label>Loan / debt repayments (£/month)</label>
         <input type="number" id="loans" min="0" step="1" value="0" />
       </div>
@@ -337,9 +393,15 @@
 
       <div id="goal-banner" class="goal-banner"></div>
 
-      <div class="chart-card">
-        <h3>Savings over time</h3>
-        <canvas id="chart"></canvas>
+      <div class="charts-row">
+        <div class="chart-card">
+          <h3>Savings over time</h3>
+          <canvas id="chart"></canvas>
+        </div>
+        <div class="chart-card chart-card--donut">
+          <h3>Where your money goes</h3>
+          <canvas id="donut"></canvas>
+        </div>
       </div>
 
       <div class="table-wrap">
@@ -381,7 +443,22 @@
     return date.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
   }
 
+  const EXP_CATEGORIES = [
+    { id: "exp_rent",      label: "Rent / Mortgage", color: "#4f8ef7" },
+    { id: "exp_food",      label: "Food & Groceries", color: "#34d399" },
+    { id: "exp_utils",     label: "Utilities",        color: "#fbbf24" },
+    { id: "exp_transport", label: "Transport",         color: "#f87171" },
+    { id: "exp_subs",      label: "Subscriptions",    color: "#a78bfa" },
+    { id: "exp_other",     label: "Other",            color: "#8892a8" },
+  ];
+
   let chartInstance = null;
+  let donutInstance = null;
+
+  function updateExpTotal() {
+    const total = EXP_CATEGORIES.reduce((s, c) => s + (parseFloat(document.getElementById(c.id).value) || 0), 0);
+    document.getElementById("exp-total-val").textContent = `£${total.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
 
   document.getElementById("calc-btn").addEventListener("click", () => {
     const get = id => parseFloat(document.getElementById(id).value) || 0;
@@ -392,7 +469,8 @@
     const otHours     = get("otHours");
     const otMult      = get("otMult");
     const taxPct      = get("taxPct");
-    const outgoings   = get("outgoings");
+    const expValues   = EXP_CATEGORIES.map(c => ({ ...c, value: get(c.id) }));
+    const outgoings   = expValues.reduce((s, c) => s + c.value, 0);
     const loans       = get("loans");
     const isaWeekly   = get("isaWeekly");
     const startSav    = get("startSavings");
@@ -512,6 +590,29 @@
       },
     });
 
+    // Donut chart — expense breakdown
+    if (donutInstance) donutInstance.destroy();
+    const donutCtx = document.getElementById("donut").getContext("2d");
+    const donutData = expValues.filter(c => c.value > 0);
+    if (loans > 0) donutData.push({ label: "Loans", value: loans, color: "#fb923c" });
+    if (isaMonth > 0) donutData.push({ label: "ISA", value: isaMonth, color: "#22d3ee" });
+    donutInstance = new Chart(donutCtx, {
+      type: "doughnut",
+      data: {
+        labels: donutData.map(c => c.label),
+        datasets: [{ data: donutData.map(c => c.value),
+                     backgroundColor: donutData.map(c => c.color),
+                     borderWidth: 2, borderColor: "#1a1d27" }],
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: "bottom", labels: { color: "#8892a8", font: { size: 11 }, padding: 10, boxWidth: 12 } },
+          tooltip: { callbacks: { label: ctx => ` £${fmt(ctx.raw)}` } },
+        },
+      },
+    });
+
     // Table
     const tbody = document.getElementById("table-body");
     tbody.innerHTML = rows.map(r => {
@@ -532,7 +633,7 @@
     document.getElementById("results").classList.add("visible");
   });
 
-  const INPUT_IDS = ["hourly","baseHours","otHours","otMult","taxPct","outgoings","loans","isaWeekly","startSavings","interestRate","months","goal"];
+  const INPUT_IDS = ["hourly","baseHours","otHours","otMult","taxPct","exp_rent","exp_food","exp_utils","exp_transport","exp_subs","exp_other","loans","isaWeekly","startSavings","interestRate","months","goal"];
 
   function saveInputs() {
     const data = {};
@@ -551,11 +652,13 @@
 
   // Load saved inputs or fall back to defaults, then calculate
   loadInputs();
+  updateExpTotal();
   document.getElementById("calc-btn").click();
 
   // Live recalculate and save as user types
   document.querySelectorAll("input").forEach(el => {
     el.addEventListener("input", () => {
+      updateExpTotal();
       saveInputs();
       document.getElementById("calc-btn").click();
     });
