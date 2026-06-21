@@ -432,7 +432,7 @@
           <input type="number" id="exp_rent" min="0" step="1" value="750" />
         </div>
         <div class="field">
-          <label>Food & Groceries</label>
+          <label>Food &amp; Groceries</label>
           <input type="number" id="exp_food" min="0" step="1" value="200" />
         </div>
       </div>
@@ -463,16 +463,16 @@
         <label>Loan / debt repayments (£/month)</label>
         <input type="number" id="loans" min="0" step="1" value="0" />
       </div>
-      <div class="field">
-        <label>ISA / savings contribution (£/week)</label>
-        <input type="number" id="isaWeekly" min="0" step="1" value="50" />
-      </div>
     </div>
 
     <div class="card">
       <div class="section-title">Projection</div>
       <div class="field">
-        <label>Starting savings (£)</label>
+        <label>Weekly savings (£/week)</label>
+        <input type="number" id="isaWeekly" min="0" step="1" value="75" placeholder="e.g. 75" />
+      </div>
+      <div class="field">
+        <label>Starting savings balance (£)</label>
         <input type="number" id="startSavings" min="0" step="1" value="500" />
       </div>
       <div class="field">
@@ -529,9 +529,9 @@
               <th class="col-gross">Gross (£)</th>
               <th class="col-net">Net (£)</th>
               <th class="col-exp">Expenses (£)</th>
-              <th>Leftover (£)</th>
+              <th>Saved (£)</th>
               <th class="col-interest">Interest (£)</th>
-              <th>Savings (£)</th>
+              <th>Balance (£)</th>
             </tr>
           </thead>
           <tbody id="table-body"></tbody>
@@ -641,45 +641,40 @@
     const expValues   = EXP_CATEGORIES.map(c => ({ ...c, value: get(c.id) }));
     const outgoings   = expValues.reduce((s, c) => s + c.value, 0);
     const loans       = get("loans");
-    const isaWeekly   = get("isaWeekly");
+    const weeklyS     = get("isaWeekly");
     const startSav    = get("startSavings");
     const interestRate = get("interestRate");
     const months      = getInt("months");
     const goalRaw     = get("goal");
     const goal        = goalRaw > 0 ? goalRaw : null;
 
-    const shiftPct     = get("shiftRate");
-    const grossWeek    = hourly * (1 + shiftPct / 100) * baseHours + hourly * otMult * otHours;
-    const grossMonth   = grossWeek * (WEEKS_PER_YEAR / MONTHS_PER_YEAR);
-    const grossYear    = grossMonth * MONTHS_PER_YEAR;
+    const shiftPct       = get("shiftRate");
+    const grossWeek      = hourly * (1 + shiftPct / 100) * baseHours + hourly * otMult * otHours;
+    const grossMonth     = grossWeek * (WEEKS_PER_YEAR / MONTHS_PER_YEAR);
+    const grossYear      = grossMonth * MONTHS_PER_YEAR;
     const { tax: incomeTax, ni, total: totalDeductions } = calcUKTax(grossYear);
-    const netYear      = grossYear - totalDeductions;
-    const netMonth     = netYear / MONTHS_PER_YEAR;
-    const isaMonth     = isaWeekly * (WEEKS_PER_YEAR / MONTHS_PER_YEAR);
-    const totalExp     = outgoings + loans + isaMonth;
-    const leftover     = netMonth - totalExp;
-    const monthlyRate  = Math.pow(1 + interestRate / 100, 1 / 12) - 1;
+    const netYear        = grossYear - totalDeductions;
+    const netMonth       = netYear / MONTHS_PER_YEAR;
+    const monthlySavings = weeklyS * (WEEKS_PER_YEAR / MONTHS_PER_YEAR);
+    const totalExp       = outgoings + loans;
+    const spendable      = netMonth - totalExp - monthlySavings;
+    const monthlyRate    = Math.pow(1 + interestRate / 100, 1 / 12) - 1;
 
     const avgExtra = extraIncomes.reduce((sum, inc) => {
       const amt = inc.amount || 0;
       if (inc.freqMonths === 0) return sum + amt * (WEEKS_PER_YEAR / MONTHS_PER_YEAR);
       return inc.freqMonths > 0 ? sum + amt / inc.freqMonths : sum;
     }, 0);
-    const totalLeftover = leftover + avgExtra;
-
     // KPIs (interest earned appended after projection loop)
     const kpiGrid = document.getElementById("kpi-grid");
     const kpis = [
-      { label: "Gross / year",      value: `£${fmt(grossYear)}`,        cls: "" },
-      { label: "Income Tax / year", value: `£${fmt(incomeTax)}`,        cls: "red" },
-      { label: "NI / year",         value: `£${fmt(ni)}`,               cls: "red" },
-      { label: "Net / year",        value: `£${fmt(netYear)}`,          cls: "" },
-      { label: "Net / month",       value: `£${fmt(netMonth)}`,         cls: "" },
-      { label: "Monthly leftover",  value: `£${fmt(totalLeftover)}`,    cls: totalLeftover < 0 ? "red" : "green" },
+      { label: "Gross / year",      value: `£${fmt(grossYear)}`,                    cls: "" },
+      { label: "Income Tax / year", value: `£${fmt(incomeTax)}`,                    cls: "red" },
+      { label: "NI / year",         value: `£${fmt(ni)}`,                           cls: "red" },
+      { label: "Net / year",        value: `£${fmt(netYear)}`,                      cls: "" },
+      { label: "Saved / month",     value: `£${fmt(monthlySavings + avgExtra)}`,    cls: "green" },
+      { label: "Spendable / month", value: `£${fmt(spendable)}`,                    cls: spendable < 0 ? "red" : "green" },
     ];
-    if (avgExtra > 0) {
-      kpis.splice(5, 0, { label: "Extra income / mo", value: `£${fmt(avgExtra)}`, cls: "green" });
-    }
 
     // Projection
     const today = new Date();
@@ -703,8 +698,9 @@
         }
       });
 
-      const interestEarned = (savings + leftover + extraThisMonth) * monthlyRate;
-      savings += leftover + extraThisMonth + interestEarned;
+      const savedThisMonth = monthlySavings + extraThisMonth;
+      const interestEarned = (savings + savedThisMonth) * monthlyRate;
+      savings += savedThisMonth + interestEarned;
       totalInterest += interestEarned;
       const dt = addMonths(today, m);
       labels.push(monthLabel(dt));
@@ -714,7 +710,7 @@
         goalHitMonth = { m, date: dt };
       }
 
-      rows.push({ m, dt, grossMonth, netMonth, totalExp, leftover, extraThisMonth, interestEarned, savings });
+      rows.push({ m, dt, grossMonth, netMonth, totalExp, savedThisMonth, extraThisMonth, interestEarned, savings });
     }
 
     if (interestRate > 0) {
@@ -735,16 +731,24 @@
         <span class="pb-amount">£${fmt(grossYear)} / yr<span class="pb-sub">£${fmt(grossMonth)} / mo</span></span>
       </div>
       <div class="pb-row">
-        <span class="pb-label indent">− Income Tax</span>
+        <span class="pb-label indent">&minus; Income Tax</span>
         <span class="pb-amount" style="color:var(--red)">£${fmt(incomeTax)} / yr</span>
       </div>
       <div class="pb-row">
-        <span class="pb-label indent">− National Insurance</span>
+        <span class="pb-label indent">&minus; National Insurance</span>
         <span class="pb-amount" style="color:var(--red)">£${fmt(ni)} / yr</span>
       </div>
+      <div class="pb-row">
+        <span class="pb-label indent">&minus; Expenses &amp; Loans</span>
+        <span class="pb-amount" style="color:var(--red)">£${fmt(totalExp)} / mo</span>
+      </div>
+      <div class="pb-row">
+        <span class="pb-label indent">&minus; Savings (£${weeklyS}/wk)</span>
+        <span class="pb-amount" style="color:var(--amber)">£${fmt(monthlySavings)} / mo</span>
+      </div>
       <div class="pb-row pb-total">
-        <span class="pb-label" style="color:var(--text)">Take-Home Pay<span class="pb-sub">${effRate}% effective deduction rate</span></span>
-        <span class="pb-amount" style="color:var(--green)">£${fmt(netYear)} / yr<span class="pb-sub">£${fmt(netMonth)} / mo</span></span>
+        <span class="pb-label" style="color:var(--text)">Spendable income<span class="pb-sub">${effRate}% tax &amp; NI rate</span></span>
+        <span class="pb-amount" style="color:${spendable < 0 ? 'var(--red)' : 'var(--green)'}">£${fmt(spendable)} / mo</span>
       </div>`;
 
     // Goal banner
@@ -809,7 +813,7 @@
     const donutCtx = document.getElementById("donut").getContext("2d");
     const donutData = expValues.filter(c => c.value > 0);
     if (loans > 0) donutData.push({ label: "Loans", value: loans, color: "#fb923c" });
-    if (isaMonth > 0) donutData.push({ label: "ISA", value: isaMonth, color: "#22d3ee" });
+    if (monthlySavings > 0) donutData.push({ label: "Savings", value: monthlySavings, color: "#22d3ee" });
     donutInstance = new Chart(donutCtx, {
       type: "doughnut",
       data: {
@@ -831,14 +835,13 @@
     const tbody = document.getElementById("table-body");
     tbody.innerHTML = rows.map(r => {
       const isGoalRow = goalHitMonth && r.m === goalHitMonth.m;
-      const neg = r.leftover < 0 ? " neg" : "";
       const badge = isGoalRow ? `<span class="badge-goal">GOAL</span>` : "";
       return `<tr${isGoalRow ? ' class="goal-row"' : ""}>
         <td>${r.m} — ${monthLabel(r.dt)}${badge}</td>
         <td class="col-gross">£${fmt(r.grossMonth)}</td>
         <td class="col-net">£${fmt(r.netMonth)}</td>
         <td class="col-exp">£${fmt(r.totalExp)}</td>
-        <td class="${neg}">£${fmt(r.leftover)}</td>
+        <td style="color:var(--green)">£${fmt(r.savedThisMonth)}</td>
         <td class="col-interest" style="color:var(--green)">£${fmt(r.interestEarned)}</td>
         <td>£${fmt(r.savings)}</td>
       </tr>`;
@@ -867,29 +870,19 @@
     } catch {}
   }
 
-  // Load saved data, render extra incomes, then calculate
-  loadAll();
-  renderExtraIncomes();
-  updateExpTotal();
-  document.getElementById("calc-btn").click();
-
-  // Live recalculate and save as user types
-  document.querySelectorAll("input:not(#extra-income-list input)").forEach(el => {
-    el.addEventListener("input", () => {
-      updateExpTotal();
-      saveAll();
-      document.getElementById("calc-btn").click();
-    });
+  EXP_CATEGORIES.forEach(c => {
+    document.getElementById(c.id).addEventListener("input", updateExpTotal);
   });
 
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js"));
-  }
+  loadAll();
+  updateExpTotal();
+  renderExtraIncomes();
+  document.getElementById("yr").textContent = new Date().getFullYear();
 </script>
 
 <footer class="footer">
   Pence &mdash; a <strong style="color:var(--text)">CodedForge</strong> project &nbsp;|&nbsp; &copy; <span id="yr"></span> CodedForge. All rights reserved.
-  <script>document.getElementById("yr").textContent = new Date().getFullYear();</script>
 </footer>
+
 </body>
 </html>
