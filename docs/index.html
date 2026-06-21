@@ -80,7 +80,7 @@
     .card + .card { margin-top: 16px; }
 
     .section-title {
-      font-size: 0.72rem;
+      font-size: 0.7rem;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 1.2px;
@@ -88,59 +88,45 @@
       margin-bottom: 16px;
     }
 
-    .field { margin-bottom: 14px; }
+    .field {
+      margin-bottom: 12px;
+    }
 
-    label {
+    .field label {
       display: block;
-      font-size: 0.85rem;
+      font-size: 0.78rem;
       color: var(--muted);
       margin-bottom: 5px;
     }
 
-    input[type="number"] {
+    .field input, .field select {
       width: 100%;
       background: var(--surface2);
       border: 1px solid var(--border);
       border-radius: 8px;
+      padding: 9px 12px;
       color: var(--text);
-      font-size: 16px; /* prevents iOS zoom on focus */
-      padding: 12px;
+      font-size: 16px;
       outline: none;
-      transition: border-color 0.15s;
-      -moz-appearance: textfield;
+      transition: border-color 0.2s;
     }
 
-    input[type="number"]::-webkit-inner-spin-button,
-    input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
-
-    input[type="number"]:focus { border-color: var(--accent); }
-
-    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-
-    @media (max-width: 420px) {
-      .row2 { grid-template-columns: 1fr; }
+    .field input:focus, .field select:focus {
+      border-color: var(--accent);
     }
 
-    button#calc-btn {
-      width: 100%;
+    .row2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .exp-total {
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-align: right;
       margin-top: 8px;
-      padding: 15px;
-      background: var(--accent);
-      color: #fff;
-      font-size: 1rem;
-      font-weight: 600;
-      border: none;
-      border-radius: 9px;
-      cursor: pointer;
-      transition: background 0.15s;
-      touch-action: manipulation;
     }
-
-    button#calc-btn:hover { background: var(--accent-dim); }
-    button#calc-btn:active { background: var(--accent-dim); transform: scale(0.98); }
-
-    .results-area { display: none; }
-    .results-area.visible { display: block; }
 
     .kpi-grid {
       display: grid;
@@ -200,184 +186,193 @@
     .pb-label.indent { padding-left: 14px; }
     .pb-amount { font-weight: 600; }
     .pb-sub { font-size: 0.78rem; color: var(--muted); margin-left: 8px; font-weight: 400; }
-    .kpi-value.red { color: var(--red); }
+
+    .kpi-value.red   { color: var(--red); }
     .kpi-value.amber { color: var(--amber); }
 
     .goal-banner {
       border-radius: var(--radius);
-      padding: 14px 16px;
-      margin-bottom: 20px;
+      padding: 14px 18px;
+      font-size: 0.9rem;
       font-weight: 600;
-      font-size: clamp(0.85rem, 3vw, 1rem);
-      display: flex;
-      align-items: center;
-      gap: 10px;
+      margin-bottom: 20px;
+      display: none;
     }
+    .goal-banner.no-goal { background: var(--surface); border: 1px solid var(--border); color: var(--muted); display: block; }
+    .goal-banner.hit { background: rgba(52, 211, 153, 0.12); border: 1px solid var(--green); color: var(--green); display: block; }
+    .goal-banner.miss { background: rgba(248, 113, 113, 0.1); border: 1px solid var(--red); color: var(--red); display: block; }
 
-    .goal-banner.hit { background: rgba(52, 211, 153, 0.12); border: 1px solid var(--green); color: var(--green); }
-    .goal-banner.miss { background: rgba(248, 113, 113, 0.1); border: 1px solid var(--red); color: var(--red); }
-    .goal-banner.no-goal { background: rgba(79, 142, 247, 0.1); border: 1px solid var(--accent); color: var(--accent); }
+    .charts-row {
+      display: grid;
+      grid-template-columns: 1fr minmax(180px, 280px);
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 640px) { .charts-row { grid-template-columns: 1fr; } }
 
     .chart-card {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 20px;
-      margin-bottom: 20px;
     }
-
     .chart-card h3 { font-size: 0.9rem; color: var(--muted); margin-bottom: 16px; }
 
-    canvas { max-height: 280px; }
-
     .table-wrap {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
       overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
     }
 
-    table { width: 100%; border-collapse: collapse; font-size: 0.86rem; min-width: 360px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
 
     thead th {
       background: var(--surface2);
+      padding: 12px 14px;
+      text-align: right;
       color: var(--muted);
       font-weight: 600;
-      text-align: right;
-      padding: 11px 14px;
       font-size: 0.75rem;
       text-transform: uppercase;
       letter-spacing: 0.6px;
       white-space: nowrap;
     }
-
     thead th:first-child { text-align: left; }
 
-    tbody tr { border-top: 1px solid var(--border); }
-    tbody tr.goal-row { background: rgba(52, 211, 153, 0.07); }
+    tbody tr {
+      border-top: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    tbody tr:hover { background: var(--surface2); }
     tbody td { padding: 10px 14px; text-align: right; color: var(--text); white-space: nowrap; }
     tbody td:first-child { text-align: left; color: var(--muted); }
 
-    /* Hide less critical columns on small screens */
-    @media (max-width: 540px) {
-      .col-gross, .col-net, .col-exp, .col-interest { display: none; }
-    }
+    .goal-row td:first-child { color: var(--green) !important; }
 
     .badge-goal {
+      display: inline-block;
       background: var(--green);
       color: #0f1117;
-      border-radius: 4px;
-      font-size: 0.68rem;
+      font-size: 0.6rem;
       font-weight: 700;
-      padding: 1px 5px;
+      padding: 2px 6px;
+      border-radius: 4px;
       margin-left: 6px;
       vertical-align: middle;
+      letter-spacing: 0.5px;
     }
 
     .neg { color: var(--red); }
 
-    .exp-total {
-      font-size: 0.85rem;
-      color: var(--muted);
-      padding: 10px 0 2px;
-      border-top: 1px solid var(--border);
-      margin-top: 4px;
+    .results-area {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+    .results-area.visible {
+      opacity: 1;
+      pointer-events: auto;
     }
 
-    .exp-total span {
-      color: var(--text);
-      font-weight: 600;
-    }
-
-    .charts-row {
-      display: grid;
-      grid-template-columns: 1fr 280px;
-      gap: 16px;
-      margin-bottom: 20px;
-    }
-
-    @media (max-width: 700px) {
-      .charts-row { grid-template-columns: 1fr; }
-    }
-
-    .chart-card { margin-bottom: 0; }
-    .chart-card--donut canvas { max-height: 220px; }
-    .extra-row {
-      display: grid;
-      grid-template-columns: 1fr 90px 130px 32px;
-      gap: 8px;
-      margin-bottom: 10px;
-      align-items: center;
-    }
-
-    @media (max-width: 420px) {
-      .extra-row { grid-template-columns: 1fr 80px; grid-template-rows: auto auto; }
-      .extra-row select { grid-column: 1; }
-      .extra-row .remove-btn { grid-column: 2; grid-row: 2; }
-    }
-
-    .extra-row input[type="text"] {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      font-size: 16px;
-      padding: 10px 12px;
-      outline: none;
-      transition: border-color 0.15s;
+    #calc-btn {
       width: 100%;
-    }
-
-    .extra-row input[type="text"]:focus { border-color: var(--accent); }
-
-    .extra-row select {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      font-size: 14px;
-      padding: 10px 8px;
-      outline: none;
-      width: 100%;
+      padding: 15px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 1rem;
+      font-weight: 700;
       cursor: pointer;
+      margin-top: 16px;
+      transition: background 0.2s;
     }
-
-    .remove-btn {
-      background: transparent;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--muted);
-      font-size: 1.1rem;
-      cursor: pointer;
-      padding: 6px;
-      line-height: 1;
-      transition: color 0.15s, border-color 0.15s;
-    }
-
-    .remove-btn:hover { color: var(--red); border-color: var(--red); }
+    #calc-btn:hover { background: var(--accent-dim); }
 
     .add-income-btn {
       width: 100%;
-      margin-top: 4px;
       padding: 10px;
       background: transparent;
-      color: var(--accent);
-      font-size: 0.9rem;
-      font-weight: 600;
       border: 1px dashed var(--border);
-      border-radius: 9px;
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 0.85rem;
       cursor: pointer;
-      transition: border-color 0.15s, color 0.15s;
+      margin-top: 8px;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .add-income-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .extra-income-row {
+      display: grid;
+      grid-template-columns: 1fr 90px auto;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .extra-income-row select {
+      grid-column: 1 / -1;
+      font-size: 0.85rem;
+    }
+    .extra-income-row input[type=text] {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      color: var(--text);
+      font-size: 16px;
+      outline: none;
+    }
+    .extra-income-row input[type=number] {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      color: var(--text);
+      font-size: 16px;
+      outline: none;
+      text-align: right;
+    }
+    .extra-income-row select {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      color: var(--text);
+      font-size: 16px;
+      outline: none;
+    }
+    .remove-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      font-size: 1rem;
+      cursor: pointer;
+      padding: 4px 8px;
+      line-height: 1;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .remove-btn:hover { color: var(--red); border-color: var(--red); }
+
+    .col-gross, .col-net, .col-exp, .col-interest {
+      display: table-cell;
+    }
+    @media (max-width: 520px) {
+      .col-gross, .col-net, .col-exp, .col-interest { display: none; }
     }
 
-    .add-income-btn:hover { border-color: var(--accent); }
-
-    .footer {
+    footer {
       text-align: center;
-      color: var(--muted);
+      margin-top: 48px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
       font-size: 0.78rem;
-      padding: 40px 0 8px;
+      color: var(--muted);
     }
   </style>
 </head>
@@ -385,19 +380,17 @@
 
 <header>
   <h1>Pence</h1>
-  <p>Every pence counts — project your savings and track your goal</p>
+  <p>Every pence counts &mdash; project your savings and track your goals</p>
 </header>
 
 <div class="layout">
-
   <!-- LEFT: inputs -->
   <div class="inputs-col">
-
     <div class="card">
       <div class="section-title">Income</div>
       <div class="row2">
         <div class="field">
-          <label>Base hourly rate (£)</label>
+          <label>Base hourly rate (&pound;)</label>
           <input type="number" id="hourly" min="0" step="0.01" value="14" />
         </div>
         <div class="field">
@@ -416,11 +409,11 @@
         </div>
       </div>
       <div class="field">
-        <label>Overtime multiplier (e.g. 1.5) — applied to base rate only</label>
+        <label>Overtime multiplier (e.g. 1.5) &mdash; applied to base rate only</label>
         <input type="number" id="otMult" min="1" step="0.1" value="1.5" />
       </div>
       <div class="field">
-        <label style="font-size:0.8rem;color:var(--muted)">UK Income Tax &amp; NI calculated automatically using 2024/25 brackets (personal allowance £12,570)</label>
+        <label style="font-size:0.8rem;color:var(--muted)">UK Income Tax &amp; NI calculated automatically using 2024/25 brackets (personal allowance &pound;12,570)</label>
       </div>
     </div>
 
@@ -432,7 +425,7 @@
           <input type="number" id="exp_rent" min="0" step="1" value="750" />
         </div>
         <div class="field">
-          <label>Food & Groceries</label>
+          <label>Food &amp; Groceries</label>
           <input type="number" id="exp_food" min="0" step="1" value="200" />
         </div>
       </div>
@@ -457,26 +450,26 @@
         </div>
       </div>
       <div class="exp-total">
-        Total outgoings: <span id="exp-total-val">£0.00</span>
+        Total outgoings: <span id="exp-total-val">&pound;0.00</span>
       </div>
       <div class="field" style="margin-top:14px">
-        <label>Loan / debt repayments (£/month)</label>
+        <label>Loan / debt repayments (&pound;/month)</label>
         <input type="number" id="loans" min="0" step="1" value="0" />
-      </div>
-      <div class="field">
-        <label>ISA / savings contribution (£/week)</label>
-        <input type="number" id="isaWeekly" min="0" step="1" value="50" />
       </div>
     </div>
 
     <div class="card">
       <div class="section-title">Projection</div>
       <div class="field">
-        <label>Starting savings (£)</label>
+        <label>Monthly savings contribution (&pound;)</label>
+        <input type="number" id="monthlySavings" min="0" step="1" value="200" placeholder="How much you want to save each month" />
+      </div>
+      <div class="field">
+        <label>Starting savings balance (&pound;)</label>
         <input type="number" id="startSavings" min="0" step="1" value="500" />
       </div>
       <div class="field">
-        <label>Annual savings interest rate (%) — e.g. 4.5 for a cash ISA</label>
+        <label>Annual savings interest rate (%) &mdash; e.g. 4.5 for a cash ISA</label>
         <input type="number" id="interestRate" min="0" max="100" step="0.1" value="0" />
       </div>
       <div class="row2">
@@ -485,7 +478,7 @@
           <input type="number" id="months" min="1" max="360" step="1" value="12" />
         </div>
         <div class="field">
-          <label>Savings goal (£) — optional</label>
+          <label>Savings goal (&pound;) &mdash; optional</label>
           <input type="number" id="goal" min="0" step="1" value="5000" />
         </div>
       </div>
@@ -526,12 +519,12 @@
           <thead>
             <tr>
               <th>Month</th>
-              <th class="col-gross">Gross (£)</th>
-              <th class="col-net">Net (£)</th>
-              <th class="col-exp">Expenses (£)</th>
-              <th>Leftover (£)</th>
-              <th class="col-interest">Interest (£)</th>
-              <th>Savings (£)</th>
+              <th class="col-gross">Gross (&pound;)</th>
+              <th class="col-net">Net (&pound;)</th>
+              <th class="col-exp">Expenses (&pound;)</th>
+              <th>Saved (&pound;)</th>
+              <th class="col-interest">Interest (&pound;)</th>
+              <th>Balance (&pound;)</th>
             </tr>
           </thead>
           <tbody id="table-body"></tbody>
@@ -574,16 +567,17 @@
       { v: "12", t: "Yearly" },
     ];
     document.getElementById("extra-income-list").innerHTML = extraIncomes.map((inc, i) => `
-      <div class="extra-row">
-        <input type="text" value="${inc.label}" placeholder="Label"
+      <div class="extra-income-row">
+        <input type="text" value="${inc.label}" placeholder="Label (e.g. Child benefit)"
                oninput="extraIncomes[${i}].label=this.value; saveAll();" />
-        <input type="number" min="0" step="1" value="${inc.amount || ''}" placeholder="£0"
+        <input type="number" value="${inc.amount || ''}" min="0" step="1" placeholder="£"
                oninput="extraIncomes[${i}].amount=parseFloat(this.value)||0; saveAll(); document.getElementById('calc-btn').click();" />
+        <button class="remove-btn" onclick="removeExtraIncome(${i})">&times;</button>
         <select onchange="extraIncomes[${i}].freqMonths=parseInt(this.value); saveAll(); document.getElementById('calc-btn').click();">
-          ${FREQ_OPTIONS.map(o => `<option value="${o.v}" ${String(inc.freqMonths)===o.v?"selected":""}>${o.t}</option>`).join("")}
+          ${FREQ_OPTIONS.map(o => `<option value="${o.v}" ${inc.freqMonths === parseInt(o.v) ? 'selected' : ''}>${o.t}</option>`).join('')}
         </select>
-        <button class="remove-btn" onclick="removeExtraIncome(${i})">×</button>
-      </div>`).join("");
+      </div>
+    `).join("");
   }
 
   function addExtraIncome() {
@@ -596,21 +590,21 @@
     extraIncomes.splice(i, 1);
     renderExtraIncomes();
     saveAll();
-    document.getElementById("calc-btn").click();
+    document.getElementById('calc-btn').click();
   }
 
-  function fmt(n) {
-    return n.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  renderExtraIncomes();
+
+  const fmt = n => Math.abs(n).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  function monthLabel(d) {
+    return d.toLocaleString("en-GB", { month: "short", year: "numeric" });
   }
 
   function addMonths(date, n) {
     const d = new Date(date);
     d.setMonth(d.getMonth() + n);
     return d;
-  }
-
-  function monthLabel(date) {
-    return date.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
   }
 
   const EXP_CATEGORIES = [
@@ -641,7 +635,7 @@
     const expValues   = EXP_CATEGORIES.map(c => ({ ...c, value: get(c.id) }));
     const outgoings   = expValues.reduce((s, c) => s + c.value, 0);
     const loans       = get("loans");
-    const isaWeekly   = get("isaWeekly");
+    const monthlySavings = get("monthlySavings");
     const startSav    = get("startSavings");
     const interestRate = get("interestRate");
     const months      = getInt("months");
@@ -655,9 +649,8 @@
     const { tax: incomeTax, ni, total: totalDeductions } = calcUKTax(grossYear);
     const netYear      = grossYear - totalDeductions;
     const netMonth     = netYear / MONTHS_PER_YEAR;
-    const isaMonth     = isaWeekly * (WEEKS_PER_YEAR / MONTHS_PER_YEAR);
-    const totalExp     = outgoings + loans + isaMonth;
-    const leftover     = netMonth - totalExp;
+    const totalExp     = outgoings + loans;
+    const leftover     = netMonth - totalExp - monthlySavings;
     const monthlyRate  = Math.pow(1 + interestRate / 100, 1 / 12) - 1;
 
     const avgExtra = extraIncomes.reduce((sum, inc) => {
@@ -674,12 +667,10 @@
       { label: "Income Tax / year", value: `£${fmt(incomeTax)}`,        cls: "red" },
       { label: "NI / year",         value: `£${fmt(ni)}`,               cls: "red" },
       { label: "Net / year",        value: `£${fmt(netYear)}`,          cls: "" },
-      { label: "Net / month",       value: `£${fmt(netMonth)}`,         cls: "" },
-      { label: "Monthly leftover",  value: `£${fmt(totalLeftover)}`,    cls: totalLeftover < 0 ? "red" : "green" },
+      { label: "Net / month",        value: `£${fmt(netMonth)}`,          cls: "" },
+      { label: "Saved / month",      value: `£${fmt(monthlySavings + avgExtra)}`, cls: "green" },
+      { label: "Spending money / mo",value: `£${fmt(leftover)}`,          cls: leftover < 0 ? "red" : "green" },
     ];
-    if (avgExtra > 0) {
-      kpis.splice(5, 0, { label: "Extra income / mo", value: `£${fmt(avgExtra)}`, cls: "green" });
-    }
 
     // Projection
     const today = new Date();
@@ -703,8 +694,9 @@
         }
       });
 
-      const interestEarned = (savings + leftover + extraThisMonth) * monthlyRate;
-      savings += leftover + extraThisMonth + interestEarned;
+      const savedThisMonth = monthlySavings + extraThisMonth;
+      const interestEarned = (savings + savedThisMonth) * monthlyRate;
+      savings += savedThisMonth + interestEarned;
       totalInterest += interestEarned;
       const dt = addMonths(today, m);
       labels.push(monthLabel(dt));
@@ -714,7 +706,7 @@
         goalHitMonth = { m, date: dt };
       }
 
-      rows.push({ m, dt, grossMonth, netMonth, totalExp, leftover, extraThisMonth, interestEarned, savings });
+      rows.push({ m, dt, grossMonth, netMonth, totalExp, monthlySavings, leftover, extraThisMonth, interestEarned, savings });
     }
 
     if (interestRate > 0) {
@@ -735,30 +727,38 @@
         <span class="pb-amount">£${fmt(grossYear)} / yr<span class="pb-sub">£${fmt(grossMonth)} / mo</span></span>
       </div>
       <div class="pb-row">
-        <span class="pb-label indent">− Income Tax</span>
+        <span class="pb-label indent">&minus; Income Tax</span>
         <span class="pb-amount" style="color:var(--red)">£${fmt(incomeTax)} / yr</span>
       </div>
       <div class="pb-row">
-        <span class="pb-label indent">− National Insurance</span>
+        <span class="pb-label indent">&minus; National Insurance</span>
         <span class="pb-amount" style="color:var(--red)">£${fmt(ni)} / yr</span>
       </div>
+      <div class="pb-row">
+        <span class="pb-label indent">&minus; Expenses &amp; Loans</span>
+        <span class="pb-amount" style="color:var(--red)">£${fmt(totalExp * MONTHS_PER_YEAR)} / yr<span class="pb-sub">£${fmt(totalExp)} / mo</span></span>
+      </div>
+      <div class="pb-row">
+        <span class="pb-label indent">&minus; Savings</span>
+        <span class="pb-amount" style="color:var(--amber)">£${fmt(monthlySavings * MONTHS_PER_YEAR)} / yr<span class="pb-sub">£${fmt(monthlySavings)} / mo</span></span>
+      </div>
       <div class="pb-row pb-total">
-        <span class="pb-label" style="color:var(--text)">Take-Home Pay<span class="pb-sub">${effRate}% effective deduction rate</span></span>
-        <span class="pb-amount" style="color:var(--green)">£${fmt(netYear)} / yr<span class="pb-sub">£${fmt(netMonth)} / mo</span></span>
+        <span class="pb-label" style="color:var(--text)">Spending money<span class="pb-sub">${effRate}% tax &amp; NI rate</span></span>
+        <span class="pb-amount" style="color:${leftover < 0 ? 'var(--red)' : 'var(--green)'}">£${fmt(leftover * MONTHS_PER_YEAR)} / yr<span class="pb-sub">£${fmt(leftover)} / mo</span></span>
       </div>`;
 
     // Goal banner
     const banner = document.getElementById("goal-banner");
     if (goal === null) {
       banner.className = "goal-banner no-goal";
-      banner.innerHTML = `<span>&#128269;</span> No savings goal set — enter one to track progress.`;
+      banner.innerHTML = `<span>&#128269;</span> No savings goal set &mdash; enter one to track progress.`;
     } else if (goalHitMonth) {
       banner.className = "goal-banner hit";
       banner.innerHTML = `<span>&#9989;</span> Goal of £${fmt(goal)} reached in month ${goalHitMonth.m} (${monthLabel(goalHitMonth.date)}).`;
     } else {
       const shortBy = goal - savings;
       banner.className = "goal-banner miss";
-      banner.innerHTML = `<span>&#10060;</span> Goal of £${fmt(goal)} not reached in ${months} months — short by £${fmt(shortBy)}.`;
+      banner.innerHTML = `<span>&#10060;</span> Goal of £${fmt(goal)} not reached in ${months} months &mdash; short by £${fmt(shortBy)}.`;
     }
 
     // Chart
@@ -809,7 +809,7 @@
     const donutCtx = document.getElementById("donut").getContext("2d");
     const donutData = expValues.filter(c => c.value > 0);
     if (loans > 0) donutData.push({ label: "Loans", value: loans, color: "#fb923c" });
-    if (isaMonth > 0) donutData.push({ label: "ISA", value: isaMonth, color: "#22d3ee" });
+    if (monthlySavings > 0) donutData.push({ label: "Savings", value: monthlySavings, color: "#22d3ee" });
     donutInstance = new Chart(donutCtx, {
       type: "doughnut",
       data: {
@@ -828,17 +828,15 @@
     });
 
     // Table
-    const tbody = document.getElementById("table-body");
-    tbody.innerHTML = rows.map(r => {
+    document.getElementById("table-body").innerHTML = rows.map(r => {
       const isGoalRow = goalHitMonth && r.m === goalHitMonth.m;
-      const neg = r.leftover < 0 ? " neg" : "";
       const badge = isGoalRow ? `<span class="badge-goal">GOAL</span>` : "";
       return `<tr${isGoalRow ? ' class="goal-row"' : ""}>
         <td>${r.m} — ${monthLabel(r.dt)}${badge}</td>
         <td class="col-gross">£${fmt(r.grossMonth)}</td>
         <td class="col-net">£${fmt(r.netMonth)}</td>
         <td class="col-exp">£${fmt(r.totalExp)}</td>
-        <td class="${neg}">£${fmt(r.leftover)}</td>
+        <td style="color:var(--green)">£${fmt(r.monthlySavings + r.extraThisMonth)}</td>
         <td class="col-interest" style="color:var(--green)">£${fmt(r.interestEarned)}</td>
         <td>£${fmt(r.savings)}</td>
       </tr>`;
@@ -847,7 +845,7 @@
     document.getElementById("results").classList.add("visible");
   });
 
-  const INPUT_IDS = ["hourly","shiftRate","baseHours","otHours","otMult","exp_rent","exp_food","exp_utils","exp_transport","exp_subs","exp_other","loans","isaWeekly","startSavings","interestRate","months","goal"];
+  const INPUT_IDS = ["hourly","shiftRate","baseHours","otHours","otMult","exp_rent","exp_food","exp_utils","exp_transport","exp_subs","exp_other","loans","monthlySavings","startSavings","interestRate","months","goal"];
 
   function saveAll() {
     const data = {};
@@ -867,29 +865,19 @@
     } catch {}
   }
 
-  // Load saved data, render extra incomes, then calculate
-  loadAll();
-  renderExtraIncomes();
-  updateExpTotal();
-  document.getElementById("calc-btn").click();
-
-  // Live recalculate and save as user types
-  document.querySelectorAll("input:not(#extra-income-list input)").forEach(el => {
-    el.addEventListener("input", () => {
-      updateExpTotal();
-      saveAll();
-      document.getElementById("calc-btn").click();
-    });
+  EXP_CATEGORIES.forEach(c => {
+    document.getElementById(c.id).addEventListener("input", updateExpTotal);
   });
 
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js"));
-  }
+  loadAll();
+  updateExpTotal();
+  renderExtraIncomes();
+  document.getElementById("yr").textContent = new Date().getFullYear();
 </script>
 
-<footer class="footer">
+<footer>
   Pence &mdash; a <strong style="color:var(--text)">CodedForge</strong> project &nbsp;|&nbsp; &copy; <span id="yr"></span> CodedForge. All rights reserved.
-  <script>document.getElementById("yr").textContent = new Date().getFullYear();</script>
 </footer>
+
 </body>
 </html>
