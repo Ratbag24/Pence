@@ -115,6 +115,18 @@
 
     input[type="number"]:focus { border-color: var(--accent); }
 
+    #savingsFreq {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 16px;
+      padding: 12px;
+      outline: none;
+      cursor: pointer;
+    }
+    #savingsFreq:focus { border-color: var(--accent); }
+
     .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
     @media (max-width: 420px) {
@@ -420,7 +432,7 @@
         <input type="number" id="otMult" min="1" step="0.1" value="1.5" />
       </div>
       <div class="field">
-        <label style="font-size:0.8rem;color:var(--muted)">UK Income Tax &amp; NI calculated automatically using 2024/25 brackets (personal allowance £12,570)</label>
+        <label style="font-size:0.8rem;color:var(--muted)">UK Income Tax &amp; NI calculated automatically using 2026/27 brackets (personal allowance £12,570)</label>
       </div>
     </div>
 
@@ -468,8 +480,14 @@
     <div class="card">
       <div class="section-title">Projection</div>
       <div class="field">
-        <label>Weekly savings (£/week)</label>
-        <input type="number" id="isaWeekly" min="0" step="1" value="75" placeholder="e.g. 75" />
+        <label>Regular savings (£)</label>
+        <div style="display:flex;gap:8px">
+          <input type="number" id="isaWeekly" min="0" step="1" value="75" placeholder="e.g. 75" style="flex:1;min-width:0" />
+          <select id="savingsFreq" onchange="saveAll(); document.getElementById('calc-btn').click();" style="flex:0 0 auto">
+            <option value="week">per week</option>
+            <option value="month">per month</option>
+          </select>
+        </div>
       </div>
       <div class="field">
         <label>Starting savings balance (£)</label>
@@ -546,6 +564,9 @@
   const WEEKS_PER_YEAR = 52;
   const MONTHS_PER_YEAR = 12;
 
+  // 2026/27 tax year. Income Tax & NI thresholds are frozen until April 2028,
+  // so these figures match 2024/25–2027/28: PA £12,570, basic to £50,270,
+  // higher to £125,140; employee NI 8% (PT–UEL) then 2%.
   function calcUKTax(grossAnnual) {
     const PA = 12570, BR_LIMIT = 50270, HR_LIMIT = 125140;
     let tax = 0;
@@ -641,7 +662,8 @@
     const expValues   = EXP_CATEGORIES.map(c => ({ ...c, value: get(c.id) }));
     const outgoings   = expValues.reduce((s, c) => s + c.value, 0);
     const loans       = get("loans");
-    const weeklyS     = get("isaWeekly");
+    const savingsAmt  = get("isaWeekly");
+    const savingsFreq = document.getElementById("savingsFreq").value;
     const startSav    = get("startSavings");
     const interestRate = get("interestRate");
     const months      = getInt("months");
@@ -655,7 +677,9 @@
     const { tax: incomeTax, ni, total: totalDeductions } = calcUKTax(grossYear);
     const netYear        = grossYear - totalDeductions;
     const netMonth       = netYear / MONTHS_PER_YEAR;
-    const monthlySavings = weeklyS * (WEEKS_PER_YEAR / MONTHS_PER_YEAR);
+    const monthlySavings = savingsFreq === "month"
+      ? savingsAmt
+      : savingsAmt * (WEEKS_PER_YEAR / MONTHS_PER_YEAR);
     const totalExp       = outgoings + loans;
     const spendable      = netMonth - totalExp - monthlySavings;
     const monthlyRate    = Math.pow(1 + interestRate / 100, 1 / 12) - 1;
@@ -743,7 +767,7 @@
         <span class="pb-amount" style="color:var(--red)">£${fmt(totalExp)} / mo</span>
       </div>
       <div class="pb-row">
-        <span class="pb-label indent">&minus; Savings (£${weeklyS}/wk)</span>
+        <span class="pb-label indent">&minus; Savings (£${savingsAmt}/${savingsFreq === "month" ? "mo" : "wk"})</span>
         <span class="pb-amount" style="color:var(--amber)">£${fmt(monthlySavings)} / mo</span>
       </div>
       <div class="pb-row pb-total">
@@ -850,7 +874,7 @@
     document.getElementById("results").classList.add("visible");
   });
 
-  const INPUT_IDS = ["hourly","shiftRate","baseHours","otHours","otMult","exp_rent","exp_food","exp_utils","exp_transport","exp_subs","exp_other","loans","isaWeekly","startSavings","interestRate","months","goal"];
+  const INPUT_IDS = ["hourly","shiftRate","baseHours","otHours","otMult","exp_rent","exp_food","exp_utils","exp_transport","exp_subs","exp_other","loans","isaWeekly","savingsFreq","startSavings","interestRate","months","goal"];
 
   function saveAll() {
     const data = {};
