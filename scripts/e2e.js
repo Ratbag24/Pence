@@ -190,6 +190,22 @@ const server = http.createServer((req, res) => {
     await page.click('[data-go="shifts"]');
     if ((await page.locator(".day-row .dn").first().textContent()).trim() !== "Mon") throw new Error("Monday not restored");
   });
+  await step("pay month start day + pay weeks", async () => {
+    await page.click('[data-go="settings"]');
+    await page.click('[data-seg="payFreq"] [data-v="monthly"]');
+    await page.fill('[data-bind="profile.periodStartDay"]', "26"); await page.waitForTimeout(100);
+    await page.click('[data-go="payslip"]');
+    const t = await text('[data-screen="payslip"] .nav-row .title'); if (!t.includes("–")) throw new Error("period label: " + t);
+    console.log("   pay period:", t.split("\n")[0].trim());
+    await page.click('[data-go="home"]'); await page.click('[data-seg="homePeriod"] [data-v="month"]');
+    const sub = await text('[data-screen="home"] .screen-head .sub'); if (!sub.startsWith("Pay month")) throw new Error("home period: " + sub);
+    await page.click('[data-act="period-weeks"][data-n="5"]');
+    const hrs = await text('[data-screen="home"] .stat .val'); if (!hrs.endsWith("/ 187.5")) throw new Error("5 weeks planned hours: " + hrs);
+    await page.click('[data-act="period-weeks"][data-n="0"]');
+    console.log("   5 pay weeks →", hrs.replace(/\s+/g, " "));
+    await page.click('[data-seg="homePeriod"] [data-v="week"]');
+    await page.click('[data-go="settings"]'); await page.fill('[data-bind="profile.periodStartDay"]', "1");
+  });
   await step("persists across reload", async () => {
     await page.reload();
     await page.waitForSelector('[data-screen="home"].active');

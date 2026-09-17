@@ -386,6 +386,7 @@ const DEFAULT_STATE = {
     usualAtShiftRate: true,     // your normal hours are paid at the shift rate
     weekStartDay: 1,            // 1 = Monday, 0 = Sunday — drives the week view, "this week" and weekly pay periods
     homePeriod: "week",         // Home card shows "this week" or "this month"
+    periodStartDay: 1,          // monthly pay: the day of the month your pay period starts (1 = calendar month)
     payFreq: "monthly",           // weekly | fortnightly | fourweekly | monthly
     pensionPct: 0, pensionBeforeTax: true,
     studentLoan: "none",
@@ -396,6 +397,7 @@ const DEFAULT_STATE = {
   shifts: [],      // { id, date: "YYYY-MM-DD", hours, type: standard|premium|ot, note }
   deposits: {},    // periodKey -> amount marked as saved
   checks: [],      // payslip checks { id, start, end, expectedNet, actualNet, gross }
+  periodWeeks: {}, // per pay-month override of how many pay weeks it contains (keyed by period start date)
   presets: [       // the shifts you actually work — one tap logs them. type "usual" follows your shift-rate setting
     { id: "earlies", name: "Earlies", hours: 8, breakMins: 30, type: "usual" },   // hours = shift length; pay uses hours − break
     { id: "days",    name: "Days",    hours: 8, breakMins: 30, type: "usual" },
@@ -427,6 +429,15 @@ const addMonths = (d, n) => { const x = new Date(d); x.setMonth(x.getMonth() + n
 const weekStart = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); const start = (typeof S !== "undefined" && S.profile.weekStartDay === 0) ? 0 : 1; return addDays(x, -((x.getDay() - start + 7) % 7)); };
 const monthStart = d => new Date(d.getFullYear(), d.getMonth(), 1);
 const monthEnd   = d => new Date(d.getFullYear(), d.getMonth() + 1, 0);
+/* the monthly pay period containing d — the calendar month unless a start day is set (e.g. 26th → 25th) */
+const monthlyPeriod = d => {
+  const sd = Math.min(28, Math.max(1, (typeof S !== "undefined" && S.profile.periodStartDay) || 1));
+  let start = new Date(d.getFullYear(), d.getMonth(), sd);
+  if (start > d) start = addMonths(start, -1);
+  return { start, end: addDays(addMonths(start, 1), -1), calendar: sd === 1 };
+};
+/* how many pay weeks a period holds = how many week-start days fall inside it (4 or 5) */
+const weeksInPeriod = (start, end) => { const wd = (typeof S !== "undefined" && S.profile.weekStartDay === 0) ? 0 : 1; let n = 0; for (let d = new Date(start); d <= end; d = addDays(d, 1)) if (d.getDay() === wd) n++; return n; };
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const DAYS_SUN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MON  = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -434,6 +445,7 @@ const MONL = ["January", "February", "March", "April", "May", "June", "July", "A
 const fmtDay  = d => `${d.getDate()} ${MON[d.getMonth()]}`;
 const fmtRange = (a, b) => a.getMonth() === b.getMonth() ? `${a.getDate()} – ${b.getDate()} ${MON[a.getMonth()]}` : `${fmtDay(a)} – ${fmtDay(b)}`;
 const fmtMonthYear = d => `${MONL[d.getMonth()]} ${d.getFullYear()}`;
+const fmtPeriod = per => per.calendar ? fmtMonthYear(per.start) : `${fmtRange(per.start, per.end)} ${per.end.getFullYear()}`;
 const fmtLong = d => `${DAYS[(d.getDay() + 6) % 7]} ${d.getDate()} ${MON[d.getMonth()]}`;
 const monthLabel = d => `${MON[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
 
@@ -604,15 +616,20 @@ function renderHome() {
   const p = S.profile, sv = S.savings;
   const isMonth = p.homePeriod === "month";
   const ws = weekStart(today());
-  const ms = monthStart(today());
+  const cur = monthlyPeriod(today());
+  const periodAt = offset => monthlyPeriod(addMonths(cur.start, offset));
   const inRange = (a, b) => { const ka = toKey(a), kb = toKey(b); return S.shifts.filter(s => s.date >= ka && s.date <= kb); };
   const periodShifts = (offset) => isMonth
-    ? inRange(monthStart(addMonths(ms, offset)), monthEnd(addMonths(ms, offset)))
+    ? (per => inRange(per.start, per.end))(periodAt(offset))
     : weekShifts(addDays(ws, 7 * offset));
   const fraction = isMonth ? 1 / 12 : 1 / 52;
+  // a pay month holds 4 or 5 pay weeks — hourly pay follows that, not 52/12
+  const weeksAuto = weeksInPeriod(cur.start, cur.end);
+  const weeksKey = toKey(cur.start);
+  const weeks = S.periodWeeks[weeksKey] || weeksAuto;
   const plannedWeekGross = planWeeklyGross(p);
-  const plannedGross = isMonth ? plannedWeekGross * WEEKS_PER_YEAR / MONTHS_PER_YEAR : plannedWeekGross;
-  const plannedHours = isMonth ? (p.baseHours || 0) * WEEKS_PER_YEAR / MONTHS_PER_YEAR : (p.baseHours || 0);
+  const plannedGross = isMonth ? plannedWeekGross * weeks : plannedWeekGross;
+  const plannedHours = isMonth ? (p.baseHours || 0) * weeks : (p.baseHours || 0);
   const periodName = isMonth ? "month" : "week";
 
   const shifts = periodShifts(0);
@@ -650,7 +667,7 @@ function renderHome() {
   const bars = [];
   for (let i = 5; i >= 0; i--) {
     const g = periodShifts(-i).reduce((a, s) => a + shiftGross(s, p), 0);
-    const start = isMonth ? addMonths(ms, -i) : addDays(ws, -7 * i);
+    const start = isMonth ? periodAt(-i).start : addDays(ws, -7 * i);
     bars.push({ label: isMonth ? MON[start.getMonth()] : `${start.getDate()}/${start.getMonth() + 1}`, g });
   }
   const maxBar = Math.max(1, ...bars.map(b => b.g));
@@ -660,7 +677,7 @@ function renderHome() {
 
   $('[data-screen="home"]').innerHTML = `
     <div class="screen-head">
-      <div><h1>${greeting()}</h1><div class="sub">${isMonth ? fmtMonthYear(today()) : `Week of ${fmtRange(ws, addDays(ws, 6))}`}</div></div>
+      <div><h1>${greeting()}</h1><div class="sub">${isMonth ? (cur.calendar ? fmtMonthYear(today()) : `Pay month ${fmtRange(cur.start, cur.end)}`) : `Week of ${fmtRange(ws, addDays(ws, 6))}`}</div></div>
     </div>
 
     <div class="card accent">
@@ -672,7 +689,9 @@ function renderHome() {
         <div class="stat"><div class="lbl">Tax + NI</div><div class="val num red">${money(d.tax + d.ni)}</div></div>
         <div class="stat"><div class="lbl">Per hour (net)</div><div class="val num">${money((shifts.length ? hours : plannedHours) > 0 ? d.net / (shifts.length ? hours : plannedHours) : 0)}</div></div>
       </div>
-      ${shifts.length ? "" : `<div class="hint" style="margin-top:10px">Based on your usual ${hrs(plannedHours)} hrs a ${periodName}. Log what you actually work for a real figure.</div>`}
+      ${isMonth ? `<div class="hint" style="margin-top:10px">${shifts.length ? "Usual" : "Based on your usual"} ${hrs(p.baseHours)} hrs × <b>${weeks} pay weeks</b> this month${shifts.length ? "" : " — log what you actually work for a real figure"}.
+        <div class="chips" style="margin-top:8px">${[4, 5].map(n => `<button class="chip sm ${weeks === n ? "on" : ""}" data-act="period-weeks" data-key="${weeksKey}" data-n="${n}">${n} weeks</button>`).join("")}${S.periodWeeks[weeksKey] ? `<button class="chip sm dashed" data-act="period-weeks" data-key="${weeksKey}" data-n="0">Auto (${weeksAuto})</button>` : ""}</div></div>`
+        : shifts.length ? "" : `<div class="hint" style="margin-top:10px">Based on your usual ${hrs(plannedHours)} hrs a week. Log what you actually work for a real figure.</div>`}
       <div class="btn-row" style="margin-top:14px">
         <button class="btn sm secondary" data-act="log-shift">＋ Log a shift</button>
         <button class="btn sm secondary" data-act="goto-payslip">Check payslip</button>
@@ -861,19 +880,19 @@ function saveShiftFromSheet(id, isNew) {
    ===================================================================== */
 function defaultPeriodEnd() {
   const t = today();
-  if (S.profile.payFreq === "monthly") return monthEnd(addMonths(monthStart(t), -1));
-  return addDays(weekStart(t), -1); // last Sunday
+  if (S.profile.payFreq === "monthly") return addDays(monthlyPeriod(t).start, -1); // end of the last completed pay month
+  return addDays(weekStart(t), -1); // day before this week started
 }
 function periodBounds(end) {
   const f = S.profile.payFreq;
-  if (f === "monthly") return { start: monthStart(end), end: monthEnd(end), fraction: 1 / 12, label: fmtMonthYear(end) };
+  if (f === "monthly") { const per = monthlyPeriod(end); return { start: per.start, end: per.end, fraction: 1 / 12, label: fmtPeriod(per) }; }
   const weeks = PAY_FREQ[f].weeks;
   const start = addDays(end, -(weeks * 7 - 1));
   return { start, end, fraction: weeks / 52, label: `${fmtRange(start, end)} ${end.getFullYear()}` };
 }
 function shiftPeriod(end, dir) {
   const f = S.profile.payFreq;
-  if (f === "monthly") return monthEnd(addMonths(monthStart(end), dir));
+  if (f === "monthly") { const ns = addMonths(monthlyPeriod(end).start, dir); return addDays(addMonths(ns, 1), -1); }
   return addDays(end, dir * PAY_FREQ[f].weeks * 7);
 }
 
@@ -1140,6 +1159,9 @@ function renderSettings() {
       <div class="eyebrow">You</div>
       <div class="field"><label>Your name (for the greeting)</label><input class="input" type="text" value="${esc(p.name)}" data-bind="profile.name" data-type="string" maxlength="24" placeholder="Optional" /></div>
       <div class="field"><label>How often are you paid?</label>${segHTML("payFreq", Object.entries(PAY_FREQ).map(([v, o]) => ({ v, t: o.label.replace("Every 4 weeks", "4-weekly") })), p.payFreq)}</div>
+      ${p.payFreq === "monthly" ? `<div class="field"><label>Pay month starts on day</label>
+        <div class="input-wrap"><input class="input" type="number" inputmode="numeric" min="1" max="28" step="1" value="${p.periodStartDay || 1}" data-bind="profile.periodStartDay" data-type="int" /><span class="suffix">of the month</span></div>
+        <div class="hint">Leave at 1 if you're paid for the calendar month. Put 26 if your pay runs from the 26th to the 25th, for example. "This month" on Home and the payslip check both follow it.</div></div>` : ""}
       <div class="field"><label>Week starts on</label>${segHTML("weekStart", [{ v: 1, t: "Monday" }, { v: 0, t: "Sunday" }], p.weekStartDay === 0 ? 0 : 1)}
         <div class="hint">Sets the Shifts week, "this week" on Home and weekly pay periods. Pick Sunday if your nights run Sunday to Thursday.</div></div>
       <div class="field"><label>Shift types</label><div class="chips">${S.presets.map(pr => `<span class="chip sm">${esc(pr.name)} ${hrs(presetPaid(pr))}h</span>`).join("")}<button class="chip sm dashed" data-act="edit-presets">✎ Edit</button></div></div>
@@ -1333,6 +1355,11 @@ document.addEventListener("click", ev => {
       else { S.deposits[pk] = amt; S.savings.balance += amt; haptic("success"); toast(`£${fmt0(amt)} added to ${S.savings.goalLabel || "savings"}`); }
       save(); renderHome(); break;
     }
+    case "period-weeks": {
+      const n = +el.dataset.n;
+      if (n) S.periodWeeks[el.dataset.key] = n; else delete S.periodWeeks[el.dataset.key];
+      save(); haptic(); renderHome(); break;
+    }
     case "edit-balance":
       haptic();
       openSheet(`<h2>Update balance</h2><p class="hint" style="margin-bottom:12px">What's actually in your savings right now?</p>
@@ -1383,7 +1410,8 @@ document.addEventListener("input", ev => {
   const path = el.dataset.bind;
   if (!path) return;
   const type = el.dataset.type || "number";
-  const val = type === "bool" ? el.checked : type === "string" ? el.value : type === "int" ? Math.max(1, parseInt(el.value) || 1) : num(el.value);
+  let val = type === "bool" ? el.checked : type === "string" ? el.value : type === "int" ? Math.max(1, parseInt(el.value) || 1) : num(el.value);
+  if (path === "profile.periodStartDay") { val = Math.min(28, val); ui.payslipEnd = null; }
   const keepRate = path === "profile.hourly" && S.profile.shiftMode === "rate" && S.profile.shiftPct > 0 ? shiftRate(S.profile) : null;
   setPath(path, val); save();
   if (keepRate !== null && val > 0) { S.profile.shiftPct = Math.max(0, (keepRate / val - 1) * 100); save(); }
