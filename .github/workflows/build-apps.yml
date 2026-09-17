@@ -7,6 +7,10 @@
 #                           ANDROID_* secrets are set, unsigned otherwise
 #   • ios-archive         – .xcarchive; plus a signed .ipa for App Store
 #                           Connect if the IOS_* secrets are set
+##   • a GitHub Release    – the same files as direct download links:
+#                           a version tag (v2.0.0) gets its own release;
+#                           a manual run refreshes the rolling "latest-build"
+#                           pre-release so there's always an APK to install
 #
 # With the optional upload secrets set it will also push the .aab to the
 # Play "internal" track and the .ipa to TestFlight. See README.md for the
@@ -204,3 +208,55 @@ jobs:
           echo "$ASC_KEY_P8_BASE64" | base64 --decode > ~/.private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
           xcrun altool --upload-app -f build/ipa/*.ipa -t ios \
             --apiKey "${{ secrets.ASC_KEY_ID }}" --apiIssuer "${{ secrets.ASC_ISSUER_ID }}"
+
+  release:
+    name: Publish downloads (GitHub Release)
+    runs-on: ubuntu-latest
+    needs: [android, ios]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Name the files
+        id: prep
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./package.json').version")
+          mkdir -p out
+          cp dist/android-debug-apk/app-debug.apk "out/Pence-${VERSION}-debug.apk"
+          for f in dist/android-release/*.aab; do [ -e "$f" ] && cp "$f" "out/Pence-${VERSION}-playstore.aab"; done
+          for f in dist/android-release/*.apk; do [ -e "$f" ] && cp "$f" "out/Pence-${VERSION}-release-$(basename "$f" .apk | sed 's/app-release-//').apk"; done
+          for f in dist/ios-archive/*.ipa dist/ios-archive/ipa/*.ipa; do [ -e "$f" ] && cp "$f" "out/Pence-${VERSION}.ipa"; done
+          if [ -d dist/ios-archive/App.xcarchive ]; then (cd dist/ios-archive && zip -qr "../../out/Pence-${VERSION}-ios.xcarchive.zip" App.xcarchive); fi
+          ls -la out
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "name=Pence ${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest-build" >> "$GITHUB_OUTPUT"
+            echo "name=Latest build (main, $(date -u +'%d %b %Y %H:%M') UTC)" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Reset the rolling latest-build release
+        if: steps.prep.outputs.tag == 'latest-build'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete latest-build --cleanup-tag --yes || true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.prep.outputs.tag }}
+          name: ${{ steps.prep.outputs.name }}
+          prerelease: ${{ steps.prep.outputs.prerelease }}
+          target_commitish: ${{ github.sha }}
+          files: out/*
+          body: |
+            **Android:** download `Pence-${{ steps.prep.outputs.version }}-debug.apk` on your phone and open it to install (allow installs from your browser if asked). It updates over the top of a previous install and keeps your data.
+
+            The `.aab` is for Google Play and the iOS archive is for App Store Connect — see the README for signing.
+
+            Built from `${{ github.sha }}`.
