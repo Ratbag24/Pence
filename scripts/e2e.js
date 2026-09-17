@@ -111,6 +111,13 @@ const server = http.createServer((req, res) => {
     console.log("   this week (logged):", big);
     if (!(await page.locator(".bars").count())) throw new Error("no bars chart");
     await snap("05-home");
+    // week / month toggle
+    await page.click('[data-seg="homePeriod"] [data-v="month"]');
+    const h2 = await text('[data-screen="home"] .card.accent h2'); if (h2 !== "This month") throw new Error("toggle: " + h2);
+    const monthNet = await text('[data-screen="home"] .big'); console.log("   this month (logged):", monthNet, "| bars:", await text('[data-screen="home"] .bars .bar-col.now .l'));
+    await page.reload(); await page.waitForSelector('[data-screen="home"].active');
+    if ((await text('[data-screen="home"] .card.accent h2')) !== "This month") throw new Error("month choice not remembered");
+    await page.click('[data-seg="homePeriod"] [data-v="week"]');
   });
   await step("payslip check", async () => {
     await page.click('[data-go="payslip"]');
