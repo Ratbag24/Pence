@@ -7,7 +7,7 @@
 #                           ANDROID_* secrets are set, unsigned otherwise
 #   • ios-archive         – .xcarchive; plus a signed .ipa for App Store
 #                           Connect if the IOS_* secrets are set
-##   • a GitHub Release    – the same files as direct download links:
+#   • a GitHub Release    – the same files as direct download links:
 #                           a version tag (v2.0.0) gets its own release;
 #                           a manual run refreshes the rolling "latest-build"
 #                           pre-release so there's always an APK to install
