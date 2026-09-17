@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Pence</string>
+    <string name="title_activity_main">Pence</string>
+    <string name="package_name">app.getpence.pence</string>
+    <string name="custom_url_scheme">app.getpence.pence</string>
+</resources>

@@ -2,15 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Pence</title>
+  <meta name="description" content="Budgeting for hourly and shift workers. Log your shifts, check your payslip is right, and see exactly when you'll hit your savings goal." />
   <link rel="manifest" href="manifest.json" />
-  <meta name="theme-color" content="#4f8ef7" />
+  <meta name="theme-color" content="#0f1117" />
+  <meta name="color-scheme" content="dark" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Pence" />
-  <link rel="apple-touch-icon" href="icon.svg" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <script src="vendor/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -18,868 +22,1350 @@
       --bg: #0f1117;
       --surface: #1a1d27;
       --surface2: #22263a;
+      --surface3: #2a2f45;
       --border: #2e3250;
       --accent: #4f8ef7;
       --accent-dim: #3b6fd4;
+      --accent-soft: rgba(79,142,247,0.14);
       --green: #34d399;
+      --green-soft: rgba(52,211,153,0.14);
       --red: #f87171;
+      --red-soft: rgba(248,113,113,0.14);
       --amber: #fbbf24;
+      --amber-soft: rgba(251,191,36,0.14);
+      --cyan: #22d3ee;
       --text: #e2e8f0;
       --muted: #8892a8;
-      --radius: 12px;
+      --radius: 14px;
+      --tabbar-h: 62px;
+      --sat: env(safe-area-inset-top, 0px);
+      --sab: env(safe-area-inset-bottom, 0px);
+      color-scheme: dark;
     }
 
+    html { height: 100%; -webkit-text-size-adjust: 100%; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
       background: var(--bg);
       color: var(--text);
-      min-height: 100vh;
-      padding: max(24px, env(safe-area-inset-top))
-               max(16px, env(safe-area-inset-right))
-               max(80px, env(safe-area-inset-bottom))
-               max(16px, env(safe-area-inset-left));
+      min-height: 100%;
+      -webkit-font-smoothing: antialiased;
+      overscroll-behavior-y: none;
+      -webkit-tap-highlight-color: transparent;
     }
 
-    header {
-      text-align: center;
-      margin-bottom: 36px;
-    }
+    #app { max-width: 540px; margin: 0 auto; min-height: 100vh; }
 
-    header h1 {
-      font-size: clamp(1.5rem, 5vw, 2rem);
-      font-weight: 700;
-      letter-spacing: -0.5px;
+    #screens {
+      padding: calc(14px + var(--sat)) 16px calc(var(--tabbar-h) + var(--sab) + 24px);
     }
+    .screen { display: none; animation: fade .18s ease; }
+    .screen.active { display: block; }
+    @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
-    header p {
-      color: var(--muted);
-      margin-top: 6px;
-      font-size: clamp(0.8rem, 3vw, 1rem);
+    /* ---------- typography ---------- */
+    h1 { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.5px; }
+    h2 { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.2px; }
+    .sub { color: var(--muted); font-size: .9rem; margin-top: 4px; }
+    .eyebrow {
+      font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px;
+      color: var(--accent); margin-bottom: 10px;
     }
+    .muted { color: var(--muted); }
+    .small { font-size: .8rem; }
+    .green { color: var(--green); } .red { color: var(--red); } .amber { color: var(--amber); } .cyan { color: var(--cyan); }
+    .num { font-variant-numeric: tabular-nums; }
 
-    .layout {
-      display: grid;
-      grid-template-columns: 380px 1fr;
-      gap: 24px;
-      max-width: 1100px;
-      margin: 0 auto;
-      align-items: start;
-    }
+    .screen-head { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 18px; }
 
-    @media (max-width: 820px) {
-      .layout { grid-template-columns: 1fr; }
-    }
-
+    /* ---------- cards ---------- */
     .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 20px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 18px; margin-bottom: 14px;
     }
+    .card.accent { border-color: rgba(79,142,247,0.4); background: linear-gradient(160deg, rgba(79,142,247,0.12), var(--surface) 60%); }
+    .card.green { border-color: rgba(52,211,153,0.4); background: linear-gradient(160deg, rgba(52,211,153,0.12), var(--surface) 60%); }
+    .card-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .card-title h2 { font-size: 1rem; }
+    .big { font-size: 2.1rem; font-weight: 800; letter-spacing: -1px; line-height: 1.1; }
+    .med { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.3px; }
 
-    .card + .card { margin-top: 16px; }
+    .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 10px; }
+    .stat { background: var(--surface2); border-radius: 10px; padding: 12px; }
+    .stat .lbl { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 4px; }
+    .stat .val { font-size: 1.05rem; font-weight: 700; }
 
-    .section-title {
-      font-size: 0.72rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 1.2px;
-      color: var(--accent);
-      margin-bottom: 16px;
-    }
+    .kv { display: flex; justify-content: space-between; align-items: baseline; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: .95rem; }
+    .kv:last-child { border-bottom: 0; }
+    .kv .k { color: var(--muted); }
+    .kv .k.indent { padding-left: 14px; }
+    .kv.total { border-top: 2px solid var(--border); border-bottom: 0; margin-top: 4px; padding-top: 12px; font-weight: 700; }
+    .kv.total .k { color: var(--text); }
 
+    /* ---------- forms ---------- */
     .field { margin-bottom: 14px; }
-
-    label {
-      display: block;
-      font-size: 0.85rem;
-      color: var(--muted);
-      margin-bottom: 5px;
+    .field:last-child { margin-bottom: 0; }
+    label, .label { display: block; font-size: .82rem; color: var(--muted); margin-bottom: 6px; }
+    .input, select.input, textarea.input {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+      color: var(--text); font-size: 16px; padding: 12px 13px; outline: none; transition: border-color .15s;
+      -moz-appearance: textfield; appearance: none; font-family: inherit;
     }
-
-    input[type="number"] {
-      width: 100%;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      font-size: 16px; /* prevents iOS zoom on focus */
-      padding: 12px;
-      outline: none;
-      transition: border-color 0.15s;
-      -moz-appearance: textfield;
-    }
-
-    input[type="number"]::-webkit-inner-spin-button,
-    input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
-
-    input[type="number"]:focus { border-color: var(--accent); }
-
+    .input::-webkit-inner-spin-button, .input::-webkit-outer-spin-button { -webkit-appearance: none; }
+    .input:focus { border-color: var(--accent); }
+    .input.lg { font-size: 1.5rem; font-weight: 700; padding: 14px; }
+    select.input { cursor: pointer; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 34px; }
+    .input-wrap { position: relative; }
+    .input-wrap .prefix { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--muted); font-weight: 600; pointer-events: none; }
+    .input-wrap .input { padding-left: 28px; }
+    .input-wrap .suffix { position: absolute; right: 13px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .85rem; pointer-events: none; }
     .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    .hint { font-size: .78rem; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+    .with-select { display: flex; gap: 8px; }
+    .with-select .input-wrap { flex: 1; min-width: 0; }
+    .with-select select.input { flex: 0 0 auto; width: auto; }
 
-    @media (max-width: 420px) {
-      .row2 { grid-template-columns: 1fr; }
+    .seg { display: flex; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 3px; gap: 3px; }
+    .seg button {
+      flex: 1; border: 0; background: transparent; color: var(--muted); font-size: .85rem; font-weight: 600;
+      padding: 9px 6px; border-radius: 8px; cursor: pointer; font-family: inherit; transition: all .15s; white-space: nowrap;
     }
+    .seg button.on { background: var(--accent); color: #fff; }
 
-    button#calc-btn {
-      width: 100%;
-      margin-top: 8px;
-      padding: 15px;
-      background: var(--accent);
-      color: #fff;
-      font-size: 1rem;
-      font-weight: 600;
-      border: none;
-      border-radius: 9px;
-      cursor: pointer;
-      transition: background 0.15s;
-      touch-action: manipulation;
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      border: 0; border-radius: 12px; padding: 14px 18px; font-size: 1rem; font-weight: 700;
+      cursor: pointer; font-family: inherit; transition: transform .08s, background .15s; text-decoration: none;
+      background: var(--accent); color: #fff; width: 100%;
     }
+    .btn:active { transform: scale(.98); }
+    .btn.secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn.ghost { background: transparent; color: var(--accent); }
+    .btn.danger { background: var(--red-soft); color: var(--red); }
+    .btn.green { background: var(--green); color: #052e1f; }
+    .btn.sm { padding: 9px 12px; font-size: .85rem; border-radius: 9px; width: auto; }
+    .btn.icon { width: 38px; height: 38px; padding: 0; border-radius: 10px; }
+    .btn[disabled] { opacity: .5; pointer-events: none; }
+    .btn-row { display: flex; gap: 10px; }
+    .btn-row .btn { flex: 1; }
 
-    button#calc-btn:hover { background: var(--accent-dim); }
-    button#calc-btn:active { background: var(--accent-dim); transform: scale(0.98); }
-
-    .results-area { display: none; }
-    .results-area.visible { display: block; }
-
-    .kpi-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      margin-bottom: 20px;
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      border: 1px solid var(--border); background: var(--surface2); color: var(--text); border-radius: 999px;
+      padding: 7px 13px; font-size: .85rem; font-weight: 600; cursor: pointer; font-family: inherit;
     }
+    .chip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 
-    @media (max-width: 560px) { .kpi-grid { grid-template-columns: 1fr 1fr; } }
+    .toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .toggle:last-child { border-bottom: 0; }
+    .toggle .t-lbl { font-size: .95rem; }
+    .toggle .t-sub { font-size: .78rem; color: var(--muted); margin-top: 2px; }
+    .switch { position: relative; width: 46px; height: 27px; flex: 0 0 auto; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .switch span { position: absolute; inset: 0; background: var(--surface3); border-radius: 999px; transition: .2s; cursor: pointer; }
+    .switch span::before { content: ""; position: absolute; width: 21px; height: 21px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+    .switch input:checked + span { background: var(--green); }
+    .switch input:checked + span::before { transform: translateX(19px); }
 
-    .kpi {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 14px;
+    details.section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 12px; }
+    details.section summary {
+      list-style: none; cursor: pointer; padding: 16px 18px; display: flex; justify-content: space-between; align-items: center;
+      font-weight: 700; font-size: .95rem;
     }
+    details.section summary::-webkit-details-marker { display: none; }
+    details.section summary .chev { color: var(--muted); transition: transform .2s; font-size: .8rem; }
+    details.section[open] summary .chev { transform: rotate(90deg); }
+    details.section .body { padding: 0 18px 18px; }
+    details.section summary .sum-val { color: var(--muted); font-weight: 500; font-size: .85rem; }
 
-    .kpi-label {
-      font-size: 0.7rem;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      margin-bottom: 6px;
+    /* ---------- ring ---------- */
+    .ring-wrap { display: flex; align-items: center; gap: 18px; }
+    .ring { width: 96px; height: 96px; flex: 0 0 auto; position: relative; }
+    .ring svg { transform: rotate(-90deg); }
+    .ring .track { stroke: var(--surface3); }
+    .ring .bar { stroke: var(--green); stroke-linecap: round; transition: stroke-dashoffset .6s ease; }
+    .ring .pct { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.05rem; }
+
+    /* ---------- bars ---------- */
+    .bars { display: flex; align-items: flex-end; gap: 6px; height: 74px; margin-top: 10px; }
+    .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+    .bar-col .b { width: 100%; background: var(--accent-soft); border: 1px solid rgba(79,142,247,.35); border-radius: 5px 5px 2px 2px; min-height: 3px; }
+    .bar-col.now .b { background: var(--accent); border-color: var(--accent); }
+    .bar-col .l { font-size: .62rem; color: var(--muted); white-space: nowrap; }
+
+    /* ---------- lists ---------- */
+    .day-row { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); align-items: flex-start; }
+    .day-row:last-child { border-bottom: 0; }
+    .day-row .d { width: 44px; flex: 0 0 auto; text-align: center; padding-top: 2px; }
+    .day-row .d .dn { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+    .day-row .d .dd { font-size: 1.15rem; font-weight: 700; line-height: 1.2; }
+    .day-row.today .d .dd { color: var(--accent); }
+    .day-row .shifts { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .shift-pill {
+      display: flex; justify-content: space-between; align-items: center; gap: 8px;
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; cursor: pointer;
+      font-size: .9rem;
     }
+    .shift-pill .t { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .shift-pill .tag { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; padding: 2px 7px; border-radius: 999px; background: var(--surface3); color: var(--muted); flex: 0 0 auto; }
+    .shift-pill .tag.premium { background: var(--amber-soft); color: var(--amber); }
+    .shift-pill .tag.ot { background: var(--green-soft); color: var(--green); }
+    .shift-pill .note { color: var(--muted); font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .add-shift { border: 1px dashed var(--border); border-radius: 10px; padding: 9px 12px; color: var(--muted); font-size: .85rem; cursor: pointer; background: transparent; text-align: left; font-family: inherit; width: 100%; }
+    .add-shift:hover { border-color: var(--accent); color: var(--accent); }
 
-    .kpi-value {
-      font-size: clamp(0.95rem, 3vw, 1.3rem);
-      font-weight: 700;
-    }
+    .nav-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; }
+    .nav-row .title { font-weight: 700; text-align: center; flex: 1; }
+    .nav-row .title small { display: block; color: var(--muted); font-weight: 500; font-size: .78rem; margin-top: 2px; }
 
-    .kpi-value.green { color: var(--green); }
+    .check-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: .9rem; }
+    .check-item:last-child { border-bottom: 0; }
+    .verdict { border-radius: 12px; padding: 14px 16px; margin-top: 14px; display: flex; gap: 12px; align-items: flex-start; }
+    .verdict .ic { font-size: 1.4rem; line-height: 1; }
+    .verdict.ok { background: var(--green-soft); border: 1px solid rgba(52,211,153,.4); }
+    .verdict.under { background: var(--red-soft); border: 1px solid rgba(248,113,113,.4); }
+    .verdict.over { background: var(--amber-soft); border: 1px solid rgba(251,191,36,.4); }
+    .verdict b { display: block; margin-bottom: 3px; }
 
-    .pay-breakdown {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 18px 20px;
-      margin-bottom: 20px;
-    }
-    .pay-breakdown .section-title { margin-bottom: 14px; }
-    .pb-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      padding: 7px 0;
-      font-size: 0.95rem;
-    }
-    .pb-row + .pb-row { border-top: 1px solid var(--border); }
-    .pb-row.pb-total {
-      border-top: 2px solid var(--border);
-      margin-top: 4px;
-      padding-top: 11px;
-      font-weight: 700;
-      font-size: 1.05rem;
-    }
-    .pb-label { color: var(--muted); }
-    .pb-label.indent { padding-left: 14px; }
-    .pb-amount { font-weight: 600; }
-    .pb-sub { font-size: 0.78rem; color: var(--muted); margin-left: 8px; font-weight: 400; }
-    .kpi-value.red { color: var(--red); }
-    .kpi-value.amber { color: var(--amber); }
+    .extra-row { display: grid; grid-template-columns: 1fr 96px 38px; gap: 8px; margin-bottom: 8px; align-items: center; }
+    .extra-row select.input { grid-column: 1 / span 2; }
 
-    .goal-banner {
-      border-radius: var(--radius);
-      padding: 14px 16px;
-      margin-bottom: 20px;
-      font-weight: 600;
-      font-size: clamp(0.85rem, 3vw, 1rem);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
+    .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+    .kpi { background: var(--surface2); border-radius: 10px; padding: 12px; }
+    .kpi .lbl { font-size: .68rem; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin-bottom: 4px; }
+    .kpi .val { font-size: 1.15rem; font-weight: 700; }
 
-    .goal-banner.hit { background: rgba(52, 211, 153, 0.12); border: 1px solid var(--green); color: var(--green); }
-    .goal-banner.miss { background: rgba(248, 113, 113, 0.1); border: 1px solid var(--red); color: var(--red); }
-    .goal-banner.no-goal { background: rgba(79, 142, 247, 0.1); border: 1px solid var(--accent); color: var(--accent); }
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -18px; padding: 0 18px; }
+    table { width: 100%; border-collapse: collapse; font-size: .82rem; white-space: nowrap; }
+    th { text-align: right; color: var(--muted); font-weight: 600; font-size: .7rem; text-transform: uppercase; letter-spacing: .6px; padding: 8px 8px; border-bottom: 1px solid var(--border); }
+    th:first-child, td:first-child { text-align: left; }
+    td { text-align: right; padding: 8px 8px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+    tr.goal-row td { background: var(--green-soft); }
+    .badge { display: inline-block; font-size: .65rem; font-weight: 800; padding: 2px 6px; border-radius: 999px; background: var(--green); color: #052e1f; margin-left: 6px; vertical-align: middle; }
 
-    .chart-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 20px;
-      margin-bottom: 20px;
-    }
+    .empty { text-align: center; color: var(--muted); padding: 22px 10px; font-size: .9rem; line-height: 1.5; }
+    .empty .em { font-size: 1.8rem; margin-bottom: 8px; }
 
-    .chart-card h3 { font-size: 0.9rem; color: var(--muted); margin-bottom: 16px; }
+    .note { background: var(--surface2); border-radius: 10px; padding: 10px 12px; font-size: .78rem; color: var(--muted); line-height: 1.45; }
 
-    canvas { max-height: 280px; }
-
-    .table-wrap {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    table { width: 100%; border-collapse: collapse; font-size: 0.86rem; min-width: 360px; }
-
-    thead th {
-      background: var(--surface2);
-      color: var(--muted);
-      font-weight: 600;
-      text-align: right;
-      padding: 11px 14px;
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      white-space: nowrap;
-    }
-
-    thead th:first-child { text-align: left; }
-
-    tbody tr { border-top: 1px solid var(--border); }
-    tbody tr.goal-row { background: rgba(52, 211, 153, 0.07); }
-    tbody td { padding: 10px 14px; text-align: right; color: var(--text); white-space: nowrap; }
-    tbody td:first-child { text-align: left; color: var(--muted); }
-
-    /* Hide less critical columns on small screens */
-    @media (max-width: 540px) {
-      .col-gross, .col-net, .col-exp, .col-interest { display: none; }
-    }
-
-    .badge-goal {
-      background: var(--green);
-      color: #0f1117;
-      border-radius: 4px;
-      font-size: 0.68rem;
-      font-weight: 700;
-      padding: 1px 5px;
-      margin-left: 6px;
-      vertical-align: middle;
-    }
-
-    .neg { color: var(--red); }
-
-    .exp-total {
-      font-size: 0.85rem;
-      color: var(--muted);
-      padding: 10px 0 2px;
+    /* ---------- tab bar ---------- */
+    #tabbar {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+      background: rgba(26,29,39,.92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
       border-top: 1px solid var(--border);
-      margin-top: 4px;
+      padding-bottom: var(--sab);
     }
-
-    .exp-total span {
-      color: var(--text);
-      font-weight: 600;
+    #tabbar .inner { max-width: 540px; margin: 0 auto; display: flex; height: var(--tabbar-h); }
+    #tabbar button {
+      flex: 1; border: 0; background: transparent; color: var(--muted); font-family: inherit; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: .66rem; font-weight: 600;
+      transition: color .15s;
     }
+    #tabbar button svg { width: 23px; height: 23px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+    #tabbar button.on { color: var(--accent); }
 
-    .charts-row {
-      display: grid;
-      grid-template-columns: 1fr 280px;
-      gap: 16px;
-      margin-bottom: 20px;
+    /* ---------- overlays ---------- */
+    .hidden { display: none !important; }
+    #sheet-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 40; animation: fadeIn .18s; }
+    @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+    #sheet {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; max-width: 540px; margin: 0 auto;
+      background: var(--surface); border-radius: 20px 20px 0 0; border: 1px solid var(--border); border-bottom: 0;
+      padding: 12px 18px calc(22px + var(--sab)); max-height: 88vh; overflow-y: auto;
+      animation: slideUp .22s cubic-bezier(.2,.8,.2,1);
     }
+    @keyframes slideUp { from { transform: translateY(40px); opacity: 0 } to { transform: none; opacity: 1 } }
+    #sheet .grab { width: 40px; height: 4px; background: var(--border); border-radius: 999px; margin: 0 auto 16px; }
+    #sheet h2 { margin-bottom: 14px; }
 
-    @media (max-width: 700px) {
-      .charts-row { grid-template-columns: 1fr; }
+    #onboarding {
+      position: fixed; inset: 0; z-index: 50; background: var(--bg); overflow-y: auto;
+      padding: calc(28px + var(--sat)) 22px calc(28px + var(--sab));
     }
+    #onboarding .ob { max-width: 440px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; }
+    #onboarding .dots { display: flex; gap: 6px; margin-bottom: 30px; }
+    #onboarding .dots i { height: 4px; flex: 1; background: var(--surface3); border-radius: 999px; }
+    #onboarding .dots i.on { background: var(--accent); }
+    #onboarding h1 { font-size: 1.7rem; margin-bottom: 8px; }
+    #onboarding .lead { color: var(--muted); font-size: 1rem; margin-bottom: 26px; line-height: 1.5; }
+    #onboarding .grow { flex: 1; }
+    #onboarding .logo { display: flex; align-items: center; gap: 10px; margin-bottom: 30px; font-weight: 800; letter-spacing: -0.3px; }
+    #onboarding .logo img { width: 34px; height: 34px; border-radius: 9px; }
 
-    .chart-card { margin-bottom: 0; }
-    .chart-card--donut canvas { max-height: 220px; }
-    .extra-row {
-      display: grid;
-      grid-template-columns: 1fr 90px 130px 32px;
-      gap: 8px;
-      margin-bottom: 10px;
-      align-items: center;
+    #toast {
+      position: fixed; left: 50%; bottom: calc(var(--tabbar-h) + var(--sab) + 14px); transform: translateX(-50%) translateY(20px);
+      background: var(--text); color: var(--bg); padding: 11px 16px; border-radius: 999px; font-size: .88rem; font-weight: 600;
+      opacity: 0; pointer-events: none; transition: all .22s; z-index: 60; white-space: nowrap; box-shadow: 0 8px 24px rgba(0,0,0,.35);
     }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-    @media (max-width: 420px) {
-      .extra-row { grid-template-columns: 1fr 80px; grid-template-rows: auto auto; }
-      .extra-row select { grid-column: 1; }
-      .extra-row .remove-btn { grid-column: 2; grid-row: 2; }
-    }
-
-    .extra-row input[type="text"] {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      font-size: 16px;
-      padding: 10px 12px;
-      outline: none;
-      transition: border-color 0.15s;
-      width: 100%;
-    }
-
-    .extra-row input[type="text"]:focus { border-color: var(--accent); }
-
-    .extra-row select {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      font-size: 14px;
-      padding: 10px 8px;
-      outline: none;
-      width: 100%;
-      cursor: pointer;
-    }
-
-    .remove-btn {
-      background: transparent;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--muted);
-      font-size: 1.1rem;
-      cursor: pointer;
-      padding: 6px;
-      line-height: 1;
-      transition: color 0.15s, border-color 0.15s;
-    }
-
-    .remove-btn:hover { color: var(--red); border-color: var(--red); }
-
-    .add-income-btn {
-      width: 100%;
-      margin-top: 4px;
-      padding: 10px;
-      background: transparent;
-      color: var(--accent);
-      font-size: 0.9rem;
-      font-weight: 600;
-      border: 1px dashed var(--border);
-      border-radius: 9px;
-      cursor: pointer;
-      transition: border-color 0.15s, color 0.15s;
-    }
-
-    .add-income-btn:hover { border-color: var(--accent); }
-
-    .footer {
-      text-align: center;
-      color: var(--muted);
-      font-size: 0.78rem;
-      padding: 40px 0 8px;
+    .footer { text-align: center; color: var(--muted); font-size: .75rem; margin-top: 30px; line-height: 1.6; }
+    .footer a { color: var(--muted); }
+    @media (min-width: 700px) {
+      body { background: #0a0c12; }
+      #app { border-left: 1px solid var(--border); border-right: 1px solid var(--border); background: var(--bg); }
     }
   </style>
 </head>
 <body>
 
-<header>
-  <h1>Pence</h1>
-  <p>Every pence counts — project your savings and track your goal</p>
-</header>
+<div id="app">
+  <main id="screens">
+    <section class="screen" data-screen="home"></section>
+    <section class="screen" data-screen="shifts"></section>
+    <section class="screen" data-screen="payslip"></section>
+    <section class="screen" data-screen="plan"></section>
+    <section class="screen" data-screen="settings"></section>
+  </main>
 
-<div class="layout">
-
-  <!-- LEFT: inputs -->
-  <div class="inputs-col">
-
-    <div class="card">
-      <div class="section-title">Income</div>
-      <div class="row2">
-        <div class="field">
-          <label>Base hourly rate (£)</label>
-          <input type="number" id="hourly" min="0" step="0.01" value="14" />
-        </div>
-        <div class="field">
-          <label>Shift premium (%)</label>
-          <input type="number" id="shiftRate" min="0" max="200" step="1" value="0" placeholder="e.g. 25" />
-        </div>
-      </div>
-      <div class="row2">
-        <div class="field">
-          <label>Base hours / week</label>
-          <input type="number" id="baseHours" min="0" step="0.5" value="37.5" />
-        </div>
-        <div class="field">
-          <label>Overtime hours / week</label>
-          <input type="number" id="otHours" min="0" step="0.5" value="0" />
-        </div>
-      </div>
-      <div class="field">
-        <label>Overtime multiplier (e.g. 1.5) — applied to base rate only</label>
-        <input type="number" id="otMult" min="1" step="0.1" value="1.5" />
-      </div>
-      <div class="field">
-        <label style="font-size:0.8rem;color:var(--muted)">UK Income Tax &amp; NI calculated automatically using 2024/25 brackets (personal allowance £12,570)</label>
-      </div>
+  <nav id="tabbar" aria-label="Main">
+    <div class="inner">
+      <button data-go="home" aria-label="Home">
+        <svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>Home
+      </button>
+      <button data-go="shifts" aria-label="Shifts">
+        <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Shifts
+      </button>
+      <button data-go="payslip" aria-label="Payslip">
+        <svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>Payslip
+      </button>
+      <button data-go="plan" aria-label="Plan">
+        <svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>Plan
+      </button>
+      <button data-go="settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2" fill="var(--bg)"/><circle cx="15" cy="12" r="2" fill="var(--bg)"/><circle cx="8" cy="17" r="2" fill="var(--bg)"/></svg>Settings
+      </button>
     </div>
-
-    <div class="card">
-      <div class="section-title">Monthly Expenses</div>
-      <div class="row2">
-        <div class="field">
-          <label>Rent / Mortgage</label>
-          <input type="number" id="exp_rent" min="0" step="1" value="750" />
-        </div>
-        <div class="field">
-          <label>Food & Groceries</label>
-          <input type="number" id="exp_food" min="0" step="1" value="200" />
-        </div>
-      </div>
-      <div class="row2">
-        <div class="field">
-          <label>Utilities</label>
-          <input type="number" id="exp_utils" min="0" step="1" value="100" />
-        </div>
-        <div class="field">
-          <label>Transport</label>
-          <input type="number" id="exp_transport" min="0" step="1" value="80" />
-        </div>
-      </div>
-      <div class="row2">
-        <div class="field">
-          <label>Subscriptions</label>
-          <input type="number" id="exp_subs" min="0" step="1" value="30" />
-        </div>
-        <div class="field">
-          <label>Other</label>
-          <input type="number" id="exp_other" min="0" step="1" value="0" />
-        </div>
-      </div>
-      <div class="exp-total">
-        Total outgoings: <span id="exp-total-val">£0.00</span>
-      </div>
-      <div class="field" style="margin-top:14px">
-        <label>Loan / debt repayments (£/month)</label>
-        <input type="number" id="loans" min="0" step="1" value="0" />
-      </div>
-      <div class="field">
-        <label>ISA / savings contribution (£/week)</label>
-        <input type="number" id="isaWeekly" min="0" step="1" value="50" />
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="section-title">Projection</div>
-      <div class="field">
-        <label>Starting savings (£)</label>
-        <input type="number" id="startSavings" min="0" step="1" value="500" />
-      </div>
-      <div class="field">
-        <label>Annual savings interest rate (%) — e.g. 4.5 for a cash ISA</label>
-        <input type="number" id="interestRate" min="0" max="100" step="0.1" value="0" />
-      </div>
-      <div class="row2">
-        <div class="field">
-          <label>Months to project</label>
-          <input type="number" id="months" min="1" max="360" step="1" value="12" />
-        </div>
-        <div class="field">
-          <label>Savings goal (£) — optional</label>
-          <input type="number" id="goal" min="0" step="1" value="5000" />
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="section-title">Additional Income</div>
-      <div id="extra-income-list"></div>
-      <button type="button" class="add-income-btn" onclick="addExtraIncome()">+ Add income source</button>
-    </div>
-
-    <button id="calc-btn">Calculate</button>
-  </div>
-
-  <!-- RIGHT: results -->
-  <div class="results-col">
-    <div class="results-area" id="results">
-
-      <div class="kpi-grid" id="kpi-grid"></div>
-
-      <div class="pay-breakdown" id="pay-breakdown"></div>
-
-      <div id="goal-banner" class="goal-banner"></div>
-
-      <div class="charts-row">
-        <div class="chart-card">
-          <h3>Savings over time</h3>
-          <canvas id="chart"></canvas>
-        </div>
-        <div class="chart-card chart-card--donut">
-          <h3>Where your money goes</h3>
-          <canvas id="donut"></canvas>
-        </div>
-      </div>
-
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Month</th>
-              <th class="col-gross">Gross (£)</th>
-              <th class="col-net">Net (£)</th>
-              <th class="col-exp">Expenses (£)</th>
-              <th>Leftover (£)</th>
-              <th class="col-interest">Interest (£)</th>
-              <th>Savings (£)</th>
-            </tr>
-          </thead>
-          <tbody id="table-body"></tbody>
-        </table>
-      </div>
-
-    </div>
-  </div>
+  </nav>
 </div>
 
+<div id="onboarding" class="hidden"></div>
+<div id="sheet-backdrop" class="hidden"></div>
+<div id="sheet" class="hidden" role="dialog" aria-modal="true"></div>
+<div id="toast" role="status"></div>
+
 <script>
-  const WEEKS_PER_YEAR = 52;
-  const MONTHS_PER_YEAR = 12;
+"use strict";
 
-  function calcUKTax(grossAnnual) {
-    const PA = 12570, BR_LIMIT = 50270, HR_LIMIT = 125140;
-    let tax = 0;
-    if (grossAnnual > PA) tax += (Math.min(grossAnnual, BR_LIMIT) - PA) * 0.20;
-    if (grossAnnual > BR_LIMIT) tax += (Math.min(grossAnnual, HR_LIMIT) - BR_LIMIT) * 0.40;
-    if (grossAnnual > HR_LIMIT) tax += (grossAnnual - HR_LIMIT) * 0.45;
-    const NI_PT = 12570, NI_UEL = 50270;
-    let ni = 0;
-    if (grossAnnual > NI_PT) ni += (Math.min(grossAnnual, NI_UEL) - NI_PT) * 0.08;
-    if (grossAnnual > NI_UEL) ni += (grossAnnual - NI_UEL) * 0.02;
-    return { tax, ni, total: tax + ni };
+/* =====================================================================
+   Pence v2 — budgeting for hourly & shift workers
+   Single-file app. All data stays on-device in localStorage.
+   ===================================================================== */
+
+const APP_VERSION = "2.0.0";
+const STORE_KEY   = "pence_v2";
+const WEEKS_PER_YEAR = 52, MONTHS_PER_YEAR = 12;
+
+/* ---------- UK tax year constants ----------
+   2026/27. Income Tax and NI thresholds are frozen until April 2028, so
+   these match 2024/25 → 2027/28. Bands are on taxable income (after the
+   personal allowance). Student-loan thresholds move each April — check
+   gov.uk when a new tax year starts. Rates are for England, Wales & NI
+   (Scotland has different income-tax bands). */
+const TAX_YEAR = {
+  label: "2026/27",
+  personalAllowance: 12570,
+  paTaperStart: 100000,          // PA drops £1 per £2 earned above this
+  basicBand: 37700,              // 20% on the first £37,700 of taxable income
+  additionalThreshold: 125140,   // 45% on taxable income above this
+  rates: { basic: 0.20, higher: 0.40, additional: 0.45 },
+  ni: { pt: 12570, uel: 50270, main: 0.08, upper: 0.02 },
+  pension: { lower: 6240, upper: 50270 },  // auto-enrolment qualifying earnings
+  studentLoan: {
+    plan1: { label: "Plan 1",       threshold: 26065, rate: 0.09 },
+    plan2: { label: "Plan 2",       threshold: 28470, rate: 0.09 },
+    plan4: { label: "Plan 4",       threshold: 32745, rate: 0.09 },
+    plan5: { label: "Plan 5",       threshold: 25000, rate: 0.09 },
+    pg:    { label: "Postgraduate", threshold: 21000, rate: 0.06 },
+  },
+  nationalLivingWage: 12.71,
+};
+
+const EXP_CATEGORIES = [
+  { id: "rent",      label: "Rent / mortgage", color: "#4f8ef7" },
+  { id: "food",      label: "Food & groceries", color: "#34d399" },
+  { id: "utils",     label: "Bills & utilities", color: "#fbbf24" },
+  { id: "transport", label: "Transport",         color: "#f87171" },
+  { id: "subs",      label: "Subscriptions",     color: "#a78bfa" },
+  { id: "other",     label: "Everything else",   color: "#8892a8" },
+];
+
+const DEFAULT_STATE = {
+  v: 2,
+  onboarded: false,
+  profile: {
+    name: "",
+    hourly: 12.71, shiftPct: 0, baseHours: 37.5, otHours: 0, otMult: 1.5,
+    payFreq: "monthly",           // weekly | fortnightly | fourweekly | monthly
+    pensionPct: 0, pensionBeforeTax: true,
+    studentLoan: "none",
+  },
+  expenses: { rent: 0, food: 0, utils: 0, transport: 0, subs: 0, other: 0, loans: 0 },
+  extraIncomes: [],
+  savings: { amount: 50, freq: "week", balance: 0, interestRate: 4, goal: 1000, goalLabel: "Rainy-day fund", months: 24 },
+  shifts: [],      // { id, date: "YYYY-MM-DD", hours, type: standard|premium|ot, note }
+  deposits: {},    // periodKey -> amount marked as saved
+  checks: [],      // payslip checks { id, start, end, expectedNet, actualNet, gross }
+};
+
+/* ---------- tiny helpers ---------- */
+const $  = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const fmt  = n => (Math.round((n || 0) * 100) / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt0 = n => Math.round(n || 0).toLocaleString("en-GB");
+const money  = n => (n < 0 ? "−£" : "£") + fmt(Math.abs(n));
+const money0 = n => (n < 0 ? "−£" : "£") + fmt0(Math.abs(n));
+const num = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
+const uid = () => Math.random().toString(36).slice(2, 10);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const hrs = n => fmt(n).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
+const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+
+/* ---------- dates (all local time) ---------- */
+const pad = n => String(n).padStart(2, "0");
+const toKey   = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const fromKey = k => { const [y, m, d] = k.split("-").map(Number); return new Date(y, m - 1, d); };
+const today   = () => { const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate()); };
+const addDays   = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const addMonths = (d, n) => { const x = new Date(d); x.setMonth(x.getMonth() + n); return x; };
+const weekStart = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); return addDays(x, -((x.getDay() + 6) % 7)); };
+const monthStart = d => new Date(d.getFullYear(), d.getMonth(), 1);
+const monthEnd   = d => new Date(d.getFullYear(), d.getMonth() + 1, 0);
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const MON  = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const fmtDay  = d => `${d.getDate()} ${MON[d.getMonth()]}`;
+const fmtRange = (a, b) => a.getMonth() === b.getMonth() ? `${a.getDate()} – ${b.getDate()} ${MON[a.getMonth()]}` : `${fmtDay(a)} – ${fmtDay(b)}`;
+const fmtMonthYear = d => `${MONL[d.getMonth()]} ${d.getFullYear()}`;
+const fmtLong = d => `${DAYS[(d.getDay() + 6) % 7]} ${d.getDate()} ${MON[d.getMonth()]}`;
+const monthLabel = d => `${MON[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
+
+/* =====================================================================
+   TAX ENGINE
+   calcDeductions(gross, fraction, profile)
+   fraction = share of the tax year the pay covers (1 = annual, 1/52 = a
+   week, 1/12 = a month). Thresholds are scaled by it — the standard
+   non-cumulative ("week 1 / month 1") basis, which is what a payslip
+   check needs. NI is genuinely per-period so that part is exact.
+   ===================================================================== */
+function calcDeductions(gross, fraction, p) {
+  const T = TAX_YEAR, f = fraction;
+  gross = Math.max(0, gross);
+
+  let pension = 0;
+  if (p.pensionPct > 0) {
+    const lower = T.pension.lower * f, upper = T.pension.upper * f;
+    pension = Math.max(0, Math.min(gross, upper) - lower) * (p.pensionPct / 100);
+  }
+  const taxablePay = p.pensionBeforeTax === false ? gross : gross - pension;
+
+  let pa = T.personalAllowance;
+  const annualised = taxablePay / f;
+  if (annualised > T.paTaperStart) pa = Math.max(0, pa - (annualised - T.paTaperStart) / 2);
+  pa *= f;
+
+  const ti = Math.max(0, taxablePay - pa);
+  const basicTop = T.basicBand * f, addTop = T.additionalThreshold * f;
+  const tax = Math.min(ti, basicTop) * T.rates.basic
+            + Math.max(0, Math.min(ti, addTop) - basicTop) * T.rates.higher
+            + Math.max(0, ti - addTop) * T.rates.additional;
+
+  const pt = T.ni.pt * f, uel = T.ni.uel * f;
+  let ni = 0;
+  if (gross > pt)  ni += (Math.min(gross, uel) - pt) * T.ni.main;
+  if (gross > uel) ni += (gross - uel) * T.ni.upper;
+
+  let loan = 0;
+  const sl = T.studentLoan[p.studentLoan];
+  if (sl) loan = Math.max(0, gross - sl.threshold * f) * sl.rate;
+
+  const net = gross - tax - ni - pension - loan;
+  return { gross, tax, ni, pension, loan, net, total: tax + ni + pension + loan };
+}
+
+const PAY_FREQ = {
+  weekly:     { label: "Weekly",     weeks: 1, fraction: 1 / 52 },
+  fortnightly:{ label: "Fortnightly",weeks: 2, fraction: 2 / 52 },
+  fourweekly: { label: "Every 4 weeks", weeks: 4, fraction: 4 / 52 },
+  monthly:    { label: "Monthly",    weeks: null, fraction: 1 / 12 },
+};
+
+function shiftMult(type, p) {
+  if (type === "premium") return 1 + (p.shiftPct || 0) / 100;
+  if (type === "ot") return p.otMult || 1.5;
+  return 1;
+}
+const shiftGross = (s, p) => (s.hours || 0) * (p.hourly || 0) * shiftMult(s.type, p);
+const planWeeklyGross = p => p.hourly * (1 + (p.shiftPct || 0) / 100) * (p.baseHours || 0) + p.hourly * (p.otMult || 1) * (p.otHours || 0);
+const monthlySavingsAmount = s => s.freq === "month" ? s.amount : s.amount * (WEEKS_PER_YEAR / MONTHS_PER_YEAR);
+const avgExtraMonthly = list => list.reduce((sum, inc) => {
+  const amt = inc.amount || 0;
+  if (inc.freqMonths === 0) return sum + amt * (WEEKS_PER_YEAR / MONTHS_PER_YEAR);
+  return inc.freqMonths > 0 ? sum + amt / inc.freqMonths : sum;
+}, 0);
+
+/* months until balance reaches goal at a monthly contribution & annual rate */
+function monthsToGoal(balance, monthly, annualRate, goal) {
+  if (goal <= 0) return null;
+  if (balance >= goal) return 0;
+  if (monthly <= 0 && annualRate <= 0) return null;
+  const r = Math.pow(1 + annualRate / 100, 1 / 12) - 1;
+  let b = balance;
+  for (let m = 1; m <= 600; m++) {
+    b = (b + monthly) * (1 + r);
+    if (b >= goal) return m;
+  }
+  return null;
+}
+
+/* =====================================================================
+   STATE
+   ===================================================================== */
+let S = load();
+save(); // persist straight away so a v1 migration or fresh defaults are on disk
+const ui = { screen: "home", shiftsWeek: weekStart(today()), payslipEnd: null, chart: null, payslipHours: "", payslipActual: "" };
+
+function deepMerge(base, over) {
+  const out = Array.isArray(base) ? [] : {};
+  for (const k of Object.keys(base)) {
+    const b = base[k], o = over ? over[k] : undefined;
+    if (b && typeof b === "object" && !Array.isArray(b)) out[k] = deepMerge(b, o && typeof o === "object" ? o : {});
+    else out[k] = o === undefined ? b : o;
+  }
+  if (over) for (const k of Object.keys(over)) if (!(k in out)) out[k] = over[k];
+  return out;
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) return deepMerge(DEFAULT_STATE, JSON.parse(raw));
+  } catch {}
+  const migrated = migrateV1();
+  return migrated || deepMerge(DEFAULT_STATE, {});
+}
+
+/* bring across data saved by Pence v1 so nobody loses their setup */
+function migrateV1() {
+  try {
+    const inp = JSON.parse(localStorage.getItem("pence_inputs") || "null");
+    if (!inp) return null;
+    const g = k => num(inp[k]);
+    const st = deepMerge(DEFAULT_STATE, {
+      onboarded: true,
+      profile: { hourly: g("hourly") || DEFAULT_STATE.profile.hourly, shiftPct: g("shiftRate"), baseHours: g("baseHours") || 37.5, otHours: g("otHours"), otMult: g("otMult") || 1.5 },
+      expenses: { rent: g("exp_rent"), food: g("exp_food"), utils: g("exp_utils"), transport: g("exp_transport"), subs: g("exp_subs"), other: g("exp_other"), loans: g("loans") },
+      savings: { amount: g("isaWeekly"), freq: inp.savingsFreq === "month" ? "month" : "week", balance: g("startSavings"), interestRate: g("interestRate"), goal: g("goal"), months: Math.max(1, parseInt(inp.months) || 24) },
+    });
+    const extra = JSON.parse(localStorage.getItem("pence_extra_incomes") || "null");
+    if (Array.isArray(extra)) st.extraIncomes = extra.filter(e => e && (e.amount || e.label)).map(e => ({ label: e.label || "", amount: num(e.amount), freqMonths: parseInt(e.freqMonths) || 1 }));
+    return st;
+  } catch { return null; }
+}
+
+function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch {} }
+
+/* set a nested value by "a.b.c" path */
+function setPath(path, value) {
+  const parts = path.split(".");
+  let o = S;
+  for (let i = 0; i < parts.length - 1; i++) o = o[parts[i]];
+  o[parts[parts.length - 1]] = value;
+}
+function getPath(path) { return path.split(".").reduce((o, k) => (o == null ? undefined : o[k]), S); }
+
+/* =====================================================================
+   NATIVE BRIDGE (Capacitor) — safe no-ops on the web
+   ===================================================================== */
+const Cap = window.Capacitor;
+const isNative = !!(Cap && typeof Cap.isNativePlatform === "function" && Cap.isNativePlatform());
+const Plug = (Cap && Cap.Plugins) || {};
+function haptic(kind = "light") {
+  try {
+    if (Plug.Haptics) {
+      if (kind === "success") Plug.Haptics.notification({ type: "SUCCESS" });
+      else Plug.Haptics.impact({ style: kind === "medium" ? "MEDIUM" : "LIGHT" });
+    } else if (navigator.vibrate) navigator.vibrate(kind === "success" ? [10, 30, 10] : 8);
+  } catch {}
+}
+function initNative() {
+  if (!isNative) return;
+  try { Plug.StatusBar && Plug.StatusBar.setStyle({ style: "DARK" }); } catch {}
+  try { Plug.StatusBar && Plug.StatusBar.setBackgroundColor && Plug.StatusBar.setBackgroundColor({ color: "#0f1117" }); } catch {}
+  try {
+    Plug.App && Plug.App.addListener("backButton", () => {
+      if (!$("#sheet").classList.contains("hidden")) closeSheet();
+      else if (ui.screen !== "home") go("home");
+      else Plug.App.exitApp();
+    });
+  } catch {}
+}
+
+/* =====================================================================
+   UI PRIMITIVES
+   ===================================================================== */
+let toastTimer;
+function toast(msg) {
+  const t = $("#toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+}
+function openSheet(html) {
+  $("#sheet").innerHTML = `<div class="grab"></div>${html}`;
+  $("#sheet").classList.remove("hidden"); $("#sheet-backdrop").classList.remove("hidden");
+  const first = $("#sheet [autofocus]"); if (first) setTimeout(() => first.focus(), 60);
+}
+function closeSheet() { $("#sheet").classList.add("hidden"); $("#sheet-backdrop").classList.add("hidden"); }
+$("#sheet-backdrop").addEventListener("click", closeSheet);
+
+function go(screen) {
+  ui.screen = screen;
+  $$("#tabbar button").forEach(b => b.classList.toggle("on", b.dataset.go === screen));
+  $$(".screen").forEach(s => s.classList.toggle("active", s.dataset.screen === screen));
+  render(screen);
+  window.scrollTo({ top: 0 });
+}
+$$("#tabbar button").forEach(b => b.addEventListener("click", () => { haptic(); go(b.dataset.go); }));
+
+function render(screen = ui.screen) {
+  ({ home: renderHome, shifts: renderShifts, payslip: renderPayslip, plan: renderPlan, settings: renderSettings })[screen]();
+}
+
+const segHTML = (name, opts, cur) => `<div class="seg" data-seg="${name}">${opts.map(o => `<button type="button" data-v="${o.v}" class="${String(o.v) === String(cur) ? "on" : ""}">${o.t}</button>`).join("")}</div>`;
+const moneyInput = (id, val, extra = "") => `<div class="input-wrap"><span class="prefix">£</span><input class="input" type="number" inputmode="decimal" step="0.01" min="0" id="${id}" value="${val ?? ""}" ${extra} /></div>`;
+
+/* =====================================================================
+   HOME — "this week"
+   ===================================================================== */
+function weekShifts(ws) { const a = toKey(ws), b = toKey(addDays(ws, 6)); return S.shifts.filter(s => s.date >= a && s.date <= b); }
+function periodKey() {
+  return S.savings.freq === "month" ? toKey(today()).slice(0, 7) : toKey(weekStart(today()));
+}
+function greeting() {
+  const h = new Date().getHours();
+  const g = h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  return S.profile.name ? `${g}, ${esc(S.profile.name)}` : g;
+}
+
+function renderHome() {
+  const p = S.profile, sv = S.savings;
+  const ws = weekStart(today());
+  const shifts = weekShifts(ws);
+  const hours = shifts.reduce((a, s) => a + s.hours, 0);
+  const gross = shifts.reduce((a, s) => a + shiftGross(s, p), 0);
+  const plannedGross = planWeeklyGross(p);
+  const useGross = shifts.length ? gross : plannedGross;
+  const d = calcDeductions(useGross, 1 / 52, p);
+
+  const lastWs = addDays(ws, -7);
+  const lastShifts = weekShifts(lastWs);
+  const lastGross = lastShifts.reduce((a, s) => a + shiftGross(s, p), 0);
+  const lastNet = lastShifts.length ? calcDeductions(lastGross, 1 / 52, p).net : null;
+
+  // savings nudge
+  const pk = periodKey();
+  const perPeriod = sv.amount || 0;
+  const saved = S.deposits[pk] || 0;
+  const periodWord = sv.freq === "month" ? "this month" : "this week";
+
+  // goal
+  const monthly = monthlySavingsAmount(sv) + avgExtraMonthly(S.extraIncomes);
+  const n = monthsToGoal(sv.balance, monthly, sv.interestRate, sv.goal);
+  const pct = sv.goal > 0 ? Math.min(100, sv.balance / sv.goal * 100) : 0;
+  const goalDate = n != null ? addMonths(today(), n) : null;
+
+  // extra-shift lever
+  const recent = S.shifts.filter(s => s.date >= toKey(addDays(ws, -56)));
+  const avgShift = recent.length ? recent.reduce((a, s) => a + s.hours, 0) / recent.length : Math.min(12, Math.max(4, (p.baseHours || 37.5) / 5));
+  const annualGross = plannedGross * 52;
+  const shiftGrossAmt = avgShift * p.hourly;
+  const extraNetMonthly = calcDeductions(annualGross + shiftGrossAmt * 12, 1, p).net - calcDeductions(annualGross, 1, p).net;
+  const nLever = monthsToGoal(sv.balance, monthly + extraNetMonthly / 12, sv.interestRate, sv.goal);
+  const sooner = n != null && nLever != null ? n - nLever : 0;
+
+  // recent weeks bars
+  const bars = [];
+  for (let i = 5; i >= 0; i--) {
+    const w = addDays(ws, -7 * i);
+    const g = weekShifts(w).reduce((a, s) => a + shiftGross(s, p), 0);
+    bars.push({ w, g });
+  }
+  const maxBar = Math.max(1, ...bars.map(b => b.g));
+  const anyBars = bars.some(b => b.g > 0);
+
+  const r = 40, circ = 2 * Math.PI * r;
+
+  $('[data-screen="home"]').innerHTML = `
+    <div class="screen-head">
+      <div><h1>${greeting()}</h1><div class="sub">Week of ${fmtRange(ws, addDays(ws, 6))}</div></div>
+    </div>
+
+    <div class="card accent">
+      <div class="card-title"><h2>This week</h2><span class="small muted">${shifts.length ? plural(shifts.length, "shift") : "planned"}</span></div>
+      <div class="big num">${money(d.net)}</div>
+      <div class="sub">estimated take-home · ${money(useGross)} gross${lastNet != null ? ` · <span class="${d.net >= lastNet ? "green" : "red"}">${d.net >= lastNet ? "▲" : "▼"} ${money(Math.abs(d.net - lastNet))} vs last week</span>` : ""}</div>
+      <div class="stat-row" style="margin-top:14px">
+        <div class="stat"><div class="lbl">Hours</div><div class="val num">${shifts.length ? hrs(hours) : hrs(p.baseHours)}<span class="muted small"> / ${hrs(p.baseHours)}</span></div></div>
+        <div class="stat"><div class="lbl">Tax + NI</div><div class="val num red">${money(d.tax + d.ni)}</div></div>
+        <div class="stat"><div class="lbl">Per hour (net)</div><div class="val num">${money((shifts.length ? hours : p.baseHours) > 0 ? d.net / (shifts.length ? hours : p.baseHours) : 0)}</div></div>
+      </div>
+      ${shifts.length ? "" : `<div class="hint" style="margin-top:10px">Based on your usual ${hrs(p.baseHours)} hrs. Log what you actually work for a real figure.</div>`}
+      <div class="btn-row" style="margin-top:14px">
+        <button class="btn sm secondary" data-act="log-shift">＋ Log a shift</button>
+        <button class="btn sm secondary" data-act="goto-payslip">Check payslip</button>
+      </div>
+    </div>
+
+    ${perPeriod > 0 ? `
+    <div class="card ${saved >= perPeriod ? "green" : ""}">
+      <div class="card-title"><h2>${saved >= perPeriod ? "Saved ✓" : "Put aside"}</h2><span class="small muted">${periodWord}</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <div>
+          <div class="med num">${money(perPeriod)}</div>
+          <div class="sub">${saved >= perPeriod ? `Nice one — added to your ${esc(sv.goalLabel || "savings")}.` : `Move it to savings, then tap done.`}</div>
+        </div>
+        <button class="btn sm ${saved >= perPeriod ? "secondary" : "green"}" data-act="toggle-saved">${saved >= perPeriod ? "Undo" : "Done ✓"}</button>
+      </div>
+    </div>` : ""}
+
+    <div class="card">
+      <div class="card-title"><h2>${esc(sv.goalLabel || "Savings goal")}</h2><button class="btn sm ghost" data-act="edit-balance">Update balance</button></div>
+      <div class="ring-wrap">
+        <div class="ring">
+          <svg width="96" height="96" viewBox="0 0 96 96">
+            <circle class="track" cx="48" cy="48" r="${r}" fill="none" stroke-width="9"/>
+            <circle class="bar" cx="48" cy="48" r="${r}" fill="none" stroke-width="9" stroke-dasharray="${circ}" stroke-dashoffset="${circ * (1 - pct / 100)}"/>
+          </svg>
+          <div class="pct">${Math.round(pct)}%</div>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div class="med num">${money0(sv.balance)} <span class="muted" style="font-size:.9rem;font-weight:500">of ${money0(sv.goal)}</span></div>
+          ${sv.goal <= 0 ? `<div class="sub">Set a goal in Plan to see your finish date.</div>` :
+            sv.balance >= sv.goal ? `<div class="sub green">🎉 Goal reached! Time to set the next one.</div>` :
+            n == null ? `<div class="sub">Add a regular amount in Plan to get a finish date.</div>` :
+            `<div class="sub">At <b class="num">${money0(monthly)}/mo</b> you'll get there by <b>${MON[goalDate.getMonth()]} ${goalDate.getFullYear()}</b> <span class="muted">(${plural(n, "month")})</span></div>`}
+        </div>
+      </div>
+      ${n != null && n > 1 && sooner > 0 ? `
+      <div class="note" style="margin-top:14px">💡 Pick up <b>one extra ${hrs(Math.round(avgShift * 2) / 2)}-hour shift a month</b> (≈ ${money0(extraNetMonthly / 12)} after tax) and you'd get there <b class="green">${plural(sooner, "month")} sooner</b>.</div>` : ""}
+    </div>
+
+    <div class="card">
+      <div class="card-title"><h2>Recent weeks</h2><span class="small muted">gross pay</span></div>
+      ${anyBars ? `<div class="bars">${bars.map((b, i) => `<div class="bar-col ${i === 5 ? "now" : ""}"><div class="b" style="height:${Math.max(3, b.g / maxBar * 100)}%" title="£${fmt(b.g)}"></div><div class="l">${b.w.getDate()}/${b.w.getMonth() + 1}</div></div>`).join("")}</div>`
+               : `<div class="empty"><div class="em">📅</div>Log your shifts and your last six weeks will show up here.</div>`}
+    </div>
+  `;
+}
+
+/* =====================================================================
+   SHIFTS
+   ===================================================================== */
+function renderShifts() {
+  const p = S.profile;
+  const ws = ui.shiftsWeek, we = addDays(ws, 6);
+  const shifts = weekShifts(ws);
+  const hours = shifts.reduce((a, s) => a + s.hours, 0);
+  const gross = shifts.reduce((a, s) => a + shiftGross(s, p), 0);
+  const d = calcDeductions(gross, 1 / 52, p);
+  const tk = toKey(today());
+  const isThisWeek = toKey(ws) === toKey(weekStart(today()));
+  const lastWeekHas = weekShifts(addDays(ws, -7)).length > 0;
+
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const day = addDays(ws, i), k = toKey(day);
+    const list = shifts.filter(s => s.date === k);
+    days.push(`
+      <div class="day-row ${k === tk ? "today" : ""}">
+        <div class="d"><div class="dn">${DAYS[i]}</div><div class="dd">${day.getDate()}</div></div>
+        <div class="shifts">
+          ${list.map(s => `
+            <div class="shift-pill" data-act="edit-shift" data-id="${s.id}">
+              <div class="t"><b class="num">${hrs(s.hours)}h</b>
+                ${s.type !== "standard" ? `<span class="tag ${s.type}">${s.type === "ot" ? "OT ×" + p.otMult : "Premium"}</span>` : ""}
+                ${s.note ? `<span class="note">${esc(s.note)}</span>` : ""}
+              </div>
+              <span class="num muted">${money(shiftGross(s, p))}</span>
+            </div>`).join("")}
+          <button class="add-shift" data-act="add-shift" data-date="${k}">＋ Add shift</button>
+        </div>
+      </div>`);
   }
 
-  // Additional income sources
-  var extraIncomes = [
-    { label: "Child benefits", amount: 0, freqMonths: 1 },
-    { label: "Solar panel",    amount: 0, freqMonths: 3 },
+  $('[data-screen="shifts"]').innerHTML = `
+    <div class="screen-head"><div><h1>Shifts</h1><div class="sub">Tap a day to log what you worked</div></div></div>
+    <div class="nav-row">
+      <button class="btn icon secondary" data-act="week-prev" aria-label="Previous week">‹</button>
+      <div class="title">${fmtRange(ws, we)} ${we.getFullYear()}<small>${isThisWeek ? "This week" : `<a href="#" data-act="week-today" style="color:var(--accent)">Back to this week</a>`}</small></div>
+      <button class="btn icon secondary" data-act="week-next" aria-label="Next week">›</button>
+    </div>
+    <div class="card">
+      <div class="stat-row">
+        <div class="stat"><div class="lbl">Hours</div><div class="val num">${hrs(hours)}</div></div>
+        <div class="stat"><div class="lbl">Gross</div><div class="val num">${money(gross)}</div></div>
+        <div class="stat"><div class="lbl">Est. net</div><div class="val num green">${money(d.net)}</div></div>
+      </div>
+    </div>
+    <div class="card">${days.join("")}</div>
+    ${!shifts.length && lastWeekHas ? `<button class="btn secondary" data-act="copy-last-week">Copy last week's shifts</button>` : ""}
+  `;
+}
+
+function shiftSheet(shift, dateKey) {
+  const p = S.profile;
+  const isNew = !shift;
+  const s = shift || { id: uid(), date: dateKey || toKey(today()), hours: 8, type: "standard", note: "" };
+  const types = [{ v: "standard", t: "Standard" }];
+  if (p.shiftPct > 0) types.push({ v: "premium", t: `Premium +${p.shiftPct}%` });
+  types.push({ v: "ot", t: `Overtime ×${p.otMult}` });
+  openSheet(`
+    <h2>${isNew ? "Log a shift" : "Edit shift"}</h2>
+    <div class="row2">
+      <div class="field"><label>Date</label><input class="input" type="date" id="sh-date" value="${s.date}" /></div>
+      <div class="field"><label>Hours</label><input class="input" type="number" inputmode="decimal" step="0.25" min="0" id="sh-hours" value="${s.hours}" autofocus /></div>
+    </div>
+    <div class="chips" style="margin:-4px 0 14px">${[4, 6, 8, 10, 12].map(h => `<button type="button" class="chip" data-hours="${h}">${h}h</button>`).join("")}</div>
+    <div class="field"><label>Type</label>${segHTML("sh-type", types, s.type)}</div>
+    <div class="field"><label>Note (optional)</label><input class="input" type="text" id="sh-note" placeholder="e.g. Nights, covering for Sam" value="${esc(s.note)}" maxlength="40" /></div>
+    <div class="hint" id="sh-preview"></div>
+    <div class="btn-row" style="margin-top:16px">
+      ${isNew ? "" : `<button class="btn danger" data-act="delete-shift" data-id="${s.id}">Delete</button>`}
+      <button class="btn" data-act="save-shift" data-id="${s.id}" data-new="${isNew}">Save</button>
+    </div>
+  `);
+  const preview = () => {
+    const h = num($("#sh-hours").value), t = $('[data-seg="sh-type"] .on').dataset.v;
+    $("#sh-preview").textContent = `${h}h × £${fmt(p.hourly)}${shiftMult(t, p) !== 1 ? ` × ${shiftMult(t, p).toFixed(2)}` : ""} = £${fmt(h * p.hourly * shiftMult(t, p))} gross`;
+  };
+  $("#sh-hours").addEventListener("input", preview);
+  $$("#sheet .chip").forEach(c => c.addEventListener("click", () => { $("#sh-hours").value = c.dataset.hours; preview(); haptic(); }));
+  $$('[data-seg="sh-type"] button').forEach(b => b.addEventListener("click", () => { $$('[data-seg="sh-type"] button').forEach(x => x.classList.remove("on")); b.classList.add("on"); preview(); haptic(); }));
+  preview();
+}
+
+function saveShiftFromSheet(id, isNew) {
+  const date = $("#sh-date").value, hours = num($("#sh-hours").value);
+  if (!date) return toast("Pick a date");
+  if (hours <= 0) return toast("Enter the hours you worked");
+  const type = $('[data-seg="sh-type"] .on').dataset.v;
+  const note = $("#sh-note").value.trim();
+  if (isNew) S.shifts.push({ id, date, hours, type, note });
+  else { const s = S.shifts.find(x => x.id === id); Object.assign(s, { date, hours, type, note }); }
+  S.shifts.sort((a, b) => a.date.localeCompare(b.date));
+  save(); closeSheet(); haptic("success");
+  ui.shiftsWeek = weekStart(fromKey(date));
+  render(); toast(isNew ? "Shift logged" : "Shift updated");
+}
+
+/* =====================================================================
+   PAYSLIP CHECK
+   ===================================================================== */
+function defaultPeriodEnd() {
+  const t = today();
+  if (S.profile.payFreq === "monthly") return monthEnd(addMonths(monthStart(t), -1));
+  return addDays(weekStart(t), -1); // last Sunday
+}
+function periodBounds(end) {
+  const f = S.profile.payFreq;
+  if (f === "monthly") return { start: monthStart(end), end: monthEnd(end), fraction: 1 / 12, label: fmtMonthYear(end) };
+  const weeks = PAY_FREQ[f].weeks;
+  const start = addDays(end, -(weeks * 7 - 1));
+  return { start, end, fraction: weeks / 52, label: `${fmtRange(start, end)} ${end.getFullYear()}` };
+}
+function shiftPeriod(end, dir) {
+  const f = S.profile.payFreq;
+  if (f === "monthly") return monthEnd(addMonths(monthStart(end), dir));
+  return addDays(end, dir * PAY_FREQ[f].weeks * 7);
+}
+
+function renderPayslip() {
+  const p = S.profile;
+  if (!ui.payslipEnd) ui.payslipEnd = defaultPeriodEnd();
+  const per = periodBounds(ui.payslipEnd);
+  const a = toKey(per.start), b = toKey(per.end);
+  const shifts = S.shifts.filter(s => s.date >= a && s.date <= b);
+  const loggedHours = shifts.reduce((x, s) => x + s.hours, 0);
+  const manualHours = num(ui.payslipHours);
+  const usingManual = !shifts.length && manualHours > 0;
+  const gross = shifts.length ? shifts.reduce((x, s) => x + shiftGross(s, p), 0) : manualHours * p.hourly * (1 + (p.shiftPct || 0) / 100);
+  const d = calcDeductions(gross, per.fraction, p);
+  const actual = num(ui.payslipActual);
+  const diff = actual - d.net;
+
+  let verdict = "";
+  if (ui.payslipActual !== "" && gross > 0) {
+    if (Math.abs(diff) <= 5) verdict = `<div class="verdict ok"><div class="ic">✅</div><div><b>Looks right</b>Within £5 of what we'd expect. Small differences are normal (rounding, cumulative tax).</div></div>`;
+    else if (diff < 0) verdict = `<div class="verdict under"><div class="ic">⚠️</div><div><b>You may have been underpaid by ${money(-diff)}</b>Check your hours and rate on the payslip against what you logged, then ask payroll to explain the difference.</div></div>`;
+    else verdict = `<div class="verdict over"><div class="ic">👀</div><div><b>${money(diff)} more than expected</b>Could be a bonus, back-pay, holiday pay or a tax refund. Worth a quick look so it isn't clawed back later.</div></div>`;
+  }
+
+  const history = S.checks.slice(-5).reverse();
+
+  $('[data-screen="payslip"]').innerHTML = `
+    <div class="screen-head"><div><h1>Payslip check</h1><div class="sub">Did you get paid right?</div></div></div>
+    <div class="nav-row">
+      <button class="btn icon secondary" data-act="period-prev" aria-label="Previous pay period">‹</button>
+      <div class="title">${per.label}<small>${PAY_FREQ[p.payFreq].label} pay · <a href="#" data-act="goto-settings" style="color:var(--accent)">change</a></small></div>
+      <button class="btn icon secondary" data-act="period-next" aria-label="Next pay period">›</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><h2>What you should get</h2><span class="small muted">${shifts.length ? `${plural(shifts.length, "shift")} · ${hrs(loggedHours)}h logged` : "no shifts logged"}</span></div>
+      ${!shifts.length ? `
+        <div class="field"><label>Hours worked this period</label>
+          <div class="input-wrap"><input class="input" type="number" inputmode="decimal" step="0.25" min="0" id="ps-hours" value="${esc(ui.payslipHours)}" placeholder="e.g. 160" /><span class="suffix">hrs at £${fmt(p.hourly)}</span></div>
+          <div class="hint">Or <a href="#" data-act="goto-shifts" style="color:var(--accent)">log your shifts</a> and this fills in automatically.</div>
+        </div>` : ""}
+      ${gross > 0 ? `
+        <div class="kv"><span class="k">Gross pay</span><span class="num">${money(d.gross)}</span></div>
+        <div class="kv"><span class="k indent">− Income Tax</span><span class="num red">${money(d.tax)}</span></div>
+        <div class="kv"><span class="k indent">− National Insurance</span><span class="num red">${money(d.ni)}</span></div>
+        ${d.pension > 0 ? `<div class="kv"><span class="k indent">− Pension (${p.pensionPct}%)</span><span class="num red">${money(d.pension)}</span></div>` : ""}
+        ${d.loan > 0 ? `<div class="kv"><span class="k indent">− Student loan (${TAX_YEAR.studentLoan[p.studentLoan].label})</span><span class="num red">${money(d.loan)}</span></div>` : ""}
+        <div class="kv total"><span class="k">Expected take-home</span><span class="num green">${money(d.net)}</span></div>
+      ` : `<div class="empty"><div class="em">🧾</div>${usingManual ? "" : "Enter your hours above, or log shifts for this period."}</div>`}
+    </div>
+
+    ${gross > 0 ? `
+    <div class="card">
+      <div class="card-title"><h2>What your payslip says</h2></div>
+      <div class="field"><label>Net pay / take-home on the payslip</label>${moneyInput("ps-actual", ui.payslipActual, 'placeholder="0.00"')}</div>
+      ${verdict}
+      ${ui.payslipActual !== "" ? `<button class="btn secondary" style="margin-top:14px" data-act="save-check">Save this check</button>` : ""}
+    </div>` : ""}
+
+    <div class="note">Assumes tax code 1257L, England/Wales/NI rates, and a non-cumulative basis for this period. If your pay changes a lot week to week, HMRC's cumulative method can shift a few pounds between periods — it evens out over the year.</div>
+
+    ${history.length ? `
+    <div class="card" style="margin-top:14px">
+      <div class="card-title"><h2>Previous checks</h2></div>
+      ${history.map(c => { const df = c.actualNet - c.expectedNet; const cls = Math.abs(df) <= 5 ? "green" : df < 0 ? "red" : "amber";
+        return `<div class="check-item"><span>${c.label}<br><span class="muted small">expected ${money(c.expectedNet)} · got ${money(c.actualNet)}</span></span><span class="num ${cls}">${Math.abs(df) <= 5 ? "✓ OK" : (df < 0 ? "−" : "+") + "£" + fmt(Math.abs(df))}</span></div>`; }).join("")}
+    </div>` : ""}
+  `;
+}
+
+/* =====================================================================
+   PLAN — pay setup, expenses, extra income, savings & projection
+   ===================================================================== */
+function renderPlan() {
+  const p = S.profile, e = S.expenses, sv = S.savings;
+  const expTotal = EXP_CATEGORIES.reduce((a, c) => a + (e[c.id] || 0), 0) + (e.loans || 0);
+  const FREQ_OPTIONS = [[0, "Weekly"], [1, "Monthly"], [3, "Every 3 months"], [6, "Every 6 months"], [12, "Yearly"]];
+  // keep whichever sections the user has open across re-renders
+  const openState = $$('[data-screen="plan"] details.section').map(d => d.open);
+
+  $('[data-screen="plan"]').innerHTML = `
+    <div class="screen-head"><div><h1>Plan</h1><div class="sub">Your numbers, projected forward</div></div></div>
+
+    <details class="section" open>
+      <summary>Pay <span class="sum-val">£${fmt(p.hourly)}/hr · ${hrs(p.baseHours)} hrs/wk</span><span class="chev">▶</span></summary>
+      <div class="body">
+        <div class="row2">
+          <div class="field"><label>Hourly rate</label>${moneyInput("pl-hourly", p.hourly, 'data-bind="profile.hourly"')}</div>
+          <div class="field"><label>Shift premium (%)</label><input class="input" type="number" inputmode="decimal" step="1" min="0" value="${p.shiftPct}" data-bind="profile.shiftPct" /></div>
+        </div>
+        <div class="row3">
+          <div class="field"><label>Hours / week</label><input class="input" type="number" inputmode="decimal" step="0.5" min="0" value="${p.baseHours}" data-bind="profile.baseHours" /></div>
+          <div class="field"><label>OT hrs / week</label><input class="input" type="number" inputmode="decimal" step="0.5" min="0" value="${p.otHours}" data-bind="profile.otHours" /></div>
+          <div class="field"><label>OT multiplier</label><input class="input" type="number" inputmode="decimal" step="0.05" min="1" value="${p.otMult}" data-bind="profile.otMult" /></div>
+        </div>
+        <div class="hint">Shift premium is the uplift on your normal hours (e.g. 15 for a 15% nights rate). Overtime is paid at your rate × the multiplier.</div>
+      </div>
+    </details>
+
+    <details class="section">
+      <summary>Monthly expenses <span class="sum-val">£${fmt0(expTotal)}/mo</span><span class="chev">▶</span></summary>
+      <div class="body">
+        <div class="row2">
+          ${EXP_CATEGORIES.map(c => `<div class="field"><label>${c.label}</label>${moneyInput("pl-" + c.id, e[c.id], `data-bind="expenses.${c.id}"`)}</div>`).join("")}
+          <div class="field"><label>Loan / debt repayments</label>${moneyInput("pl-loans", e.loans, 'data-bind="expenses.loans"')}</div>
+        </div>
+      </div>
+    </details>
+
+    <details class="section">
+      <summary>Extra income <span class="sum-val">${S.extraIncomes.length ? `£${fmt0(avgExtraMonthly(S.extraIncomes))}/mo avg` : "none"}</span><span class="chev">▶</span></summary>
+      <div class="body">
+        <div class="hint" style="margin:-4px 0 12px">Child benefit, a side hustle, solar payments… anything extra goes straight into your savings pot.</div>
+        <div id="extra-list">
+          ${S.extraIncomes.map((inc, i) => `
+            <div class="extra-row">
+              <input class="input" type="text" placeholder="Name" value="${esc(inc.label)}" data-extra="${i}" data-k="label" />
+              <div class="input-wrap"><span class="prefix">£</span><input class="input" type="number" inputmode="decimal" step="0.01" min="0" value="${inc.amount || ""}" data-extra="${i}" data-k="amount" /></div>
+              <button class="btn icon danger" data-act="remove-extra" data-i="${i}" aria-label="Remove">✕</button>
+              <select class="input" data-extra="${i}" data-k="freqMonths">${FREQ_OPTIONS.map(([v, t]) => `<option value="${v}" ${inc.freqMonths === v ? "selected" : ""}>${t}</option>`).join("")}</select>
+            </div>`).join("")}
+        </div>
+        <button class="btn sm secondary" data-act="add-extra">＋ Add income</button>
+      </div>
+    </details>
+
+    <details class="section" open>
+      <summary>Savings &amp; goal <span class="sum-val">£${fmt0(sv.amount)}/${sv.freq === "month" ? "mo" : "wk"} → £${fmt0(sv.goal)}</span><span class="chev">▶</span></summary>
+      <div class="body">
+        <div class="field"><label>Regular savings</label>
+          <div class="with-select">
+            <div class="input-wrap"><span class="prefix">£</span><input class="input" type="number" inputmode="decimal" step="1" min="0" value="${sv.amount}" data-bind="savings.amount" /></div>
+            <select class="input" data-bind="savings.freq" data-type="string"><option value="week" ${sv.freq === "week" ? "selected" : ""}>per week</option><option value="month" ${sv.freq === "month" ? "selected" : ""}>per month</option></select>
+          </div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Current balance</label>${moneyInput("pl-balance", sv.balance, 'data-bind="savings.balance"')}</div>
+          <div class="field"><label>Interest rate (% APR)</label><input class="input" type="number" inputmode="decimal" step="0.1" min="0" value="${sv.interestRate}" data-bind="savings.interestRate" /></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Saving for</label><input class="input" type="text" placeholder="e.g. Holiday, car, deposit" value="${esc(sv.goalLabel)}" data-bind="savings.goalLabel" data-type="string" maxlength="30" /></div>
+          <div class="field"><label>Goal amount</label>${moneyInput("pl-goal", sv.goal, 'data-bind="savings.goal"')}</div>
+        </div>
+        <div class="field"><label>Project how far ahead (months)</label><input class="input" type="number" inputmode="numeric" step="1" min="1" max="600" value="${sv.months}" data-bind="savings.months" data-type="int" /></div>
+      </div>
+    </details>
+
+    <div id="plan-results"></div>
+  `;
+  if (openState.length) $$('[data-screen="plan"] details.section').forEach((d, i) => { if (openState[i] !== undefined) d.open = openState[i]; });
+  renderPlanResults();
+}
+
+function renderPlanResults() {
+  const p = S.profile, e = S.expenses, sv = S.savings;
+  const expTotal = EXP_CATEGORIES.reduce((a, c) => a + (e[c.id] || 0), 0) + (e.loans || 0);
+  const grossWeek = planWeeklyGross(p);
+  const grossYear = grossWeek * 52, grossMonth = grossYear / 12;
+  const d = calcDeductions(grossYear, 1, p);
+  const netMonth = d.net / 12;
+  const monthlySavings = monthlySavingsAmount(sv);
+  const avgExtra = avgExtraMonthly(S.extraIncomes);
+  const spendable = netMonth - expTotal - monthlySavings;
+  const monthlyRate = Math.pow(1 + sv.interestRate / 100, 1 / 12) - 1;
+
+  // projection loop
+  const t = today();
+  let bal = sv.balance, totalInterest = 0, goalHit = null;
+  const rows = [], labels = [monthLabel(t)], series = [bal];
+  for (let m = 1; m <= sv.months; m++) {
+    let extra = 0;
+    S.extraIncomes.forEach(inc => {
+      const amt = inc.amount || 0;
+      if (inc.freqMonths === 0) extra += amt * (52 / 12);
+      else if (inc.freqMonths > 0 && m % inc.freqMonths === 0) extra += amt;
+    });
+    const savedThisMonth = monthlySavings + extra;
+    const interest = (bal + savedThisMonth) * monthlyRate;
+    bal += savedThisMonth + interest; totalInterest += interest;
+    const dt = addMonths(t, m);
+    labels.push(monthLabel(dt)); series.push(bal);
+    if (goalHit === null && sv.goal > 0 && bal >= sv.goal) goalHit = { m, dt };
+    rows.push({ m, dt, savedThisMonth, interest, bal });
+  }
+
+  const kpis = [
+    ["Gross / year", money0(grossYear), ""], ["Take-home / month", money0(netMonth), ""],
+    ["Tax + NI / year", money0(d.tax + d.ni), "red"], ["Spendable / month", money0(spendable), spendable < 0 ? "red" : "green"],
+    ["Saved / month", money0(monthlySavings + avgExtra), "cyan"], ["Interest earned", money0(totalInterest), "green"],
   ];
 
-  function renderExtraIncomes() {
-    const FREQ_OPTIONS = [
-      { v: "0",  t: "Weekly" },
-      { v: "1",  t: "Monthly" },
-      { v: "3",  t: "Every 3 months" },
-      { v: "6",  t: "Every 6 months" },
-      { v: "12", t: "Yearly" },
-    ];
-    document.getElementById("extra-income-list").innerHTML = extraIncomes.map((inc, i) => `
-      <div class="extra-row">
-        <input type="text" value="${inc.label}" placeholder="Label"
-               oninput="extraIncomes[${i}].label=this.value; saveAll();" />
-        <input type="number" min="0" step="1" value="${inc.amount || ''}" placeholder="£0"
-               oninput="extraIncomes[${i}].amount=parseFloat(this.value)||0; saveAll(); document.getElementById('calc-btn').click();" />
-        <select onchange="extraIncomes[${i}].freqMonths=parseInt(this.value); saveAll(); document.getElementById('calc-btn').click();">
-          ${FREQ_OPTIONS.map(o => `<option value="${o.v}" ${String(inc.freqMonths)===o.v?"selected":""}>${o.t}</option>`).join("")}
-        </select>
-        <button class="remove-btn" onclick="removeExtraIncome(${i})">×</button>
-      </div>`).join("");
-  }
+  $("#plan-results").innerHTML = `
+    <div class="card">
+      <div class="eyebrow">Results</div>
+      <div class="kpis">${kpis.map(([l, v, c]) => `<div class="kpi"><div class="lbl">${l}</div><div class="val num ${c}">${v}</div></div>`).join("")}</div>
+      ${sv.goal > 0 ? (goalHit ? `<div class="note" style="background:var(--green-soft)">🎯 <b>${esc(sv.goalLabel || "Goal")}</b> of ${money0(sv.goal)} reached in <b>${MON[goalHit.dt.getMonth()]} ${goalHit.dt.getFullYear()}</b> — month ${goalHit.m}.</div>`
+                                : `<div class="note">Goal of ${money0(sv.goal)} isn't reached within ${sv.months} months at this rate. You'd finish on ${money0(bal)}.</div>`) : ""}
+      ${spendable < 0 ? `<div class="note" style="background:var(--red-soft);margin-top:10px">⚠️ Your expenses and savings add up to more than your take-home. Try trimming the savings amount or expenses.</div>` : ""}
+    </div>
 
-  function addExtraIncome() {
-    extraIncomes.push({ label: "", amount: 0, freqMonths: 1 });
-    renderExtraIncomes();
-    saveAll();
-  }
+    <div class="card">
+      <div class="eyebrow">Where your pay goes</div>
+      <div class="kv"><span class="k">Gross pay</span><span class="num">${money(grossYear)} / yr <span class="muted small">(${money(grossMonth)} / mo)</span></span></div>
+      <div class="kv"><span class="k indent">− Income Tax</span><span class="num red">${money(d.tax)} / yr</span></div>
+      <div class="kv"><span class="k indent">− National Insurance</span><span class="num red">${money(d.ni)} / yr</span></div>
+      ${d.pension > 0 ? `<div class="kv"><span class="k indent">− Pension</span><span class="num red">${money(d.pension)} / yr</span></div>` : ""}
+      ${d.loan > 0 ? `<div class="kv"><span class="k indent">− Student loan</span><span class="num red">${money(d.loan)} / yr</span></div>` : ""}
+      <div class="kv"><span class="k">Take-home</span><span class="num">${money(netMonth)} / mo</span></div>
+      <div class="kv"><span class="k indent">− Expenses &amp; loans</span><span class="num red">${money(expTotal)} / mo</span></div>
+      <div class="kv"><span class="k indent">− Savings (£${fmt0(sv.amount)}/${sv.freq === "month" ? "mo" : "wk"})</span><span class="num amber">${money(monthlySavings)} / mo</span></div>
+      <div class="kv total"><span class="k">Spendable</span><span class="num ${spendable < 0 ? "red" : "green"}">${money(spendable)} / mo</span></div>
+    </div>
 
-  function removeExtraIncome(i) {
-    extraIncomes.splice(i, 1);
-    renderExtraIncomes();
-    saveAll();
-    document.getElementById("calc-btn").click();
-  }
+    <div class="card">
+      <div class="eyebrow">Savings over ${sv.months} months</div>
+      <div style="height:220px"><canvas id="plan-chart"></canvas></div>
+    </div>
 
-  function fmt(n) {
-    return n.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
+    <div class="card">
+      <div class="eyebrow">Month by month</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Month</th><th>Saved</th><th>Interest</th><th>Balance</th></tr></thead>
+        <tbody>${rows.map(r => `<tr${goalHit && r.m === goalHit.m ? ' class="goal-row"' : ""}><td>${r.m} · ${monthLabel(r.dt)}${goalHit && r.m === goalHit.m ? '<span class="badge">GOAL</span>' : ""}</td><td class="green">£${fmt(r.savedThisMonth)}</td><td class="green">£${fmt(r.interest)}</td><td>£${fmt(r.bal)}</td></tr>`).join("")}</tbody>
+      </table></div>
+    </div>
+  `;
 
-  function addMonths(date, n) {
-    const d = new Date(date);
-    d.setMonth(d.getMonth() + n);
-    return d;
-  }
-
-  function monthLabel(date) {
-    return date.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
-  }
-
-  const EXP_CATEGORIES = [
-    { id: "exp_rent",      label: "Rent / Mortgage", color: "#4f8ef7" },
-    { id: "exp_food",      label: "Food & Groceries", color: "#34d399" },
-    { id: "exp_utils",     label: "Utilities",        color: "#fbbf24" },
-    { id: "exp_transport", label: "Transport",         color: "#f87171" },
-    { id: "exp_subs",      label: "Subscriptions",    color: "#a78bfa" },
-    { id: "exp_other",     label: "Other",            color: "#8892a8" },
-  ];
-
-  let chartInstance = null;
-  let donutInstance = null;
-
-  function updateExpTotal() {
-    const total = EXP_CATEGORIES.reduce((s, c) => s + (parseFloat(document.getElementById(c.id).value) || 0), 0);
-    document.getElementById("exp-total-val").textContent = `£${total.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  }
-
-  document.getElementById("calc-btn").addEventListener("click", () => {
-    const get = id => parseFloat(document.getElementById(id).value) || 0;
-    const getInt = id => Math.max(1, parseInt(document.getElementById(id).value) || 1);
-
-    const hourly      = get("hourly");
-    const baseHours   = get("baseHours");
-    const otHours     = get("otHours");
-    const otMult      = get("otMult");
-    const expValues   = EXP_CATEGORIES.map(c => ({ ...c, value: get(c.id) }));
-    const outgoings   = expValues.reduce((s, c) => s + c.value, 0);
-    const loans       = get("loans");
-    const isaWeekly   = get("isaWeekly");
-    const startSav    = get("startSavings");
-    const interestRate = get("interestRate");
-    const months      = getInt("months");
-    const goalRaw     = get("goal");
-    const goal        = goalRaw > 0 ? goalRaw : null;
-
-    const shiftPct     = get("shiftRate");
-    const grossWeek    = hourly * (1 + shiftPct / 100) * baseHours + hourly * otMult * otHours;
-    const grossMonth   = grossWeek * (WEEKS_PER_YEAR / MONTHS_PER_YEAR);
-    const grossYear    = grossMonth * MONTHS_PER_YEAR;
-    const { tax: incomeTax, ni, total: totalDeductions } = calcUKTax(grossYear);
-    const netYear      = grossYear - totalDeductions;
-    const netMonth     = netYear / MONTHS_PER_YEAR;
-    const isaMonth     = isaWeekly * (WEEKS_PER_YEAR / MONTHS_PER_YEAR);
-    const totalExp     = outgoings + loans + isaMonth;
-    const leftover     = netMonth - totalExp;
-    const monthlyRate  = Math.pow(1 + interestRate / 100, 1 / 12) - 1;
-
-    // KPIs (interest earned appended after projection loop)
-    const kpiGrid = document.getElementById("kpi-grid");
-    const kpis = [
-      { label: "Gross / year",      value: `£${fmt(grossYear)}`,        cls: "" },
-      { label: "Income Tax / year", value: `£${fmt(incomeTax)}`,        cls: "red" },
-      { label: "NI / year",         value: `£${fmt(ni)}`,               cls: "red" },
-      { label: "Net / year",        value: `£${fmt(netYear)}`,          cls: "" },
-      { label: "Net / month",       value: `£${fmt(netMonth)}`,         cls: "" },
-      { label: "Monthly leftover",  value: `£${fmt(leftover)}`,         cls: leftover < 0 ? "red" : "green" },
-    ];
-
-    // Projection
-    const today = new Date();
-    let savings = startSav;
-    let goalHitMonth = null;
-    let totalInterest = 0;
-    const rows = [];
-    const labels = [];
-    const savingsData = [savings];
-
-    labels.push(monthLabel(today));
-
-    for (let m = 1; m <= months; m++) {
-      let extraThisMonth = 0;
-      extraIncomes.forEach(inc => {
-        const amt = inc.amount || 0;
-        if (inc.freqMonths === 0) {
-          extraThisMonth += amt * (WEEKS_PER_YEAR / MONTHS_PER_YEAR);
-        } else if (m % inc.freqMonths === 0) {
-          extraThisMonth += amt;
-        }
-      });
-
-      const interestEarned = (savings + leftover + extraThisMonth) * monthlyRate;
-      savings += leftover + extraThisMonth + interestEarned;
-      totalInterest += interestEarned;
-      const dt = addMonths(today, m);
-      labels.push(monthLabel(dt));
-      savingsData.push(savings);
-
-      if (goalHitMonth === null && goal !== null && savings >= goal) {
-        goalHitMonth = { m, date: dt };
-      }
-
-      rows.push({ m, dt, grossMonth, netMonth, totalExp, leftover, extraThisMonth, interestEarned, savings });
-    }
-
-    if (interestRate > 0) {
-      kpis.push({ label: "Interest earned", value: `£${fmt(totalInterest)}`, cls: "green" });
-    }
-
-    kpiGrid.innerHTML = kpis.map(k =>
-      `<div class="kpi"><div class="kpi-label">${k.label}</div>
-       <div class="kpi-value ${k.cls}">${k.value}</div></div>`
-    ).join("");
-
-    // Pay breakdown card
-    const effRate = grossYear > 0 ? ((totalDeductions / grossYear) * 100).toFixed(1) : "0.0";
-    document.getElementById("pay-breakdown").innerHTML = `
-      <div class="section-title">Pay Breakdown</div>
-      <div class="pb-row">
-        <span class="pb-label">Gross Pay</span>
-        <span class="pb-amount">£${fmt(grossYear)} / yr<span class="pb-sub">£${fmt(grossMonth)} / mo</span></span>
-      </div>
-      <div class="pb-row">
-        <span class="pb-label indent">− Income Tax</span>
-        <span class="pb-amount" style="color:var(--red)">£${fmt(incomeTax)} / yr</span>
-      </div>
-      <div class="pb-row">
-        <span class="pb-label indent">− National Insurance</span>
-        <span class="pb-amount" style="color:var(--red)">£${fmt(ni)} / yr</span>
-      </div>
-      <div class="pb-row pb-total">
-        <span class="pb-label" style="color:var(--text)">Take-Home Pay<span class="pb-sub">${effRate}% effective deduction rate</span></span>
-        <span class="pb-amount" style="color:var(--green)">£${fmt(netYear)} / yr<span class="pb-sub">£${fmt(netMonth)} / mo</span></span>
-      </div>`;
-
-    // Goal banner
-    const banner = document.getElementById("goal-banner");
-    if (goal === null) {
-      banner.className = "goal-banner no-goal";
-      banner.innerHTML = `<span>&#128269;</span> No savings goal set — enter one to track progress.`;
-    } else if (goalHitMonth) {
-      banner.className = "goal-banner hit";
-      banner.innerHTML = `<span>&#9989;</span> Goal of £${fmt(goal)} reached in month ${goalHitMonth.m} (${monthLabel(goalHitMonth.date)}).`;
-    } else {
-      const shortBy = goal - savings;
-      banner.className = "goal-banner miss";
-      banner.innerHTML = `<span>&#10060;</span> Goal of £${fmt(goal)} not reached in ${months} months — short by £${fmt(shortBy)}.`;
-    }
-
-    // Chart
-    if (chartInstance) chartInstance.destroy();
-    const ctx = document.getElementById("chart").getContext("2d");
-
-    const goalLine = goal !== null
-      ? { label: "Goal", data: Array(labels.length).fill(goal),
-          borderColor: "rgba(52,211,153,0.55)", borderDash: [6,4],
-          borderWidth: 1.5, pointRadius: 0, fill: false }
-      : null;
-
-    const datasets = [
-      { label: "Savings", data: savingsData,
-        borderColor: "#4f8ef7", backgroundColor: "rgba(79,142,247,0.12)",
-        borderWidth: 2, pointRadius: 3, pointBackgroundColor: "#4f8ef7",
-        fill: true, tension: 0.35 },
-      ...(goalLine ? [goalLine] : []),
-    ];
-
-    chartInstance = new Chart(ctx, {
+  if (ui.chart) { ui.chart.destroy(); ui.chart = null; }
+  if (window.Chart) {
+    const ctx = $("#plan-chart").getContext("2d");
+    const grad = ctx.createLinearGradient(0, 0, 0, 220); grad.addColorStop(0, "rgba(79,142,247,.35)"); grad.addColorStop(1, "rgba(79,142,247,0)");
+    ui.chart = new Chart(ctx, {
       type: "line",
-      data: { labels, datasets },
-      options: {
-        responsive: true,
-        interaction: { mode: "index", intersect: false },
-        plugins: {
-          legend: { labels: { color: "#8892a8", font: { size: 12 } } },
-          tooltip: {
-            callbacks: {
-              label: ctx => ` £${fmt(ctx.raw)}`,
-            },
-          },
-        },
-        scales: {
-          x: { ticks: { color: "#8892a8", maxRotation: 45, font: { size: 11 } },
-               grid: { color: "#22263a" } },
-          y: { ticks: { color: "#8892a8",
-                        callback: v => `£${v >= 1000 ? (v/1000).toFixed(1)+"k" : fmt(v)}`,
-                        font: { size: 11 } },
-               grid: { color: "#22263a" } },
-        },
-      },
+      data: { labels, datasets: [
+        { label: "Balance", data: series, borderColor: "#4f8ef7", backgroundColor: grad, fill: true, tension: .3, pointRadius: 0, borderWidth: 2 },
+        ...(sv.goal > 0 ? [{ label: "Goal", data: labels.map(() => sv.goal), borderColor: "#34d399", borderDash: [5, 5], pointRadius: 0, borderWidth: 1.5, fill: false }] : []),
+      ]},
+      options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.dataset.label}: £${fmt(c.raw)}` } } },
+        scales: { x: { ticks: { color: "#8892a8", maxTicksLimit: 6, font: { size: 10 } }, grid: { color: "rgba(46,50,80,.5)" } },
+                  y: { ticks: { color: "#8892a8", font: { size: 10 }, callback: v => "£" + fmt0(v) }, grid: { color: "rgba(46,50,80,.5)" } } } },
     });
-
-    // Donut chart — expense breakdown
-    if (donutInstance) donutInstance.destroy();
-    const donutCtx = document.getElementById("donut").getContext("2d");
-    const donutData = expValues.filter(c => c.value > 0);
-    if (loans > 0) donutData.push({ label: "Loans", value: loans, color: "#fb923c" });
-    if (isaMonth > 0) donutData.push({ label: "ISA", value: isaMonth, color: "#22d3ee" });
-    donutInstance = new Chart(donutCtx, {
-      type: "doughnut",
-      data: {
-        labels: donutData.map(c => c.label),
-        datasets: [{ data: donutData.map(c => c.value),
-                     backgroundColor: donutData.map(c => c.color),
-                     borderWidth: 2, borderColor: "#1a1d27" }],
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: { position: "bottom", labels: { color: "#8892a8", font: { size: 11 }, padding: 10, boxWidth: 12 } },
-          tooltip: { callbacks: { label: ctx => ` £${fmt(ctx.raw)}` } },
-        },
-      },
-    });
-
-    // Table
-    const tbody = document.getElementById("table-body");
-    tbody.innerHTML = rows.map(r => {
-      const isGoalRow = goalHitMonth && r.m === goalHitMonth.m;
-      const neg = r.leftover < 0 ? " neg" : "";
-      const badge = isGoalRow ? `<span class="badge-goal">GOAL</span>` : "";
-      return `<tr${isGoalRow ? ' class="goal-row"' : ""}>
-        <td>${r.m} — ${monthLabel(r.dt)}${badge}</td>
-        <td class="col-gross">£${fmt(r.grossMonth)}</td>
-        <td class="col-net">£${fmt(r.netMonth)}</td>
-        <td class="col-exp">£${fmt(r.totalExp)}</td>
-        <td class="${neg}">£${fmt(r.leftover)}</td>
-        <td class="col-interest" style="color:var(--green)">£${fmt(r.interestEarned)}</td>
-        <td>£${fmt(r.savings)}</td>
-      </tr>`;
-    }).join("");
-
-    document.getElementById("results").classList.add("visible");
-  });
-
-  const INPUT_IDS = ["hourly","shiftRate","baseHours","otHours","otMult","exp_rent","exp_food","exp_utils","exp_transport","exp_subs","exp_other","loans","isaWeekly","startSavings","interestRate","months","goal"];
-
-  function saveAll() {
-    const data = {};
-    INPUT_IDS.forEach(id => data[id] = document.getElementById(id).value);
-    localStorage.setItem("pence_inputs", JSON.stringify(data));
-    localStorage.setItem("pence_extra_incomes", JSON.stringify(extraIncomes));
   }
+}
 
-  function loadAll() {
+/* =====================================================================
+   SETTINGS
+   ===================================================================== */
+function renderSettings() {
+  const p = S.profile;
+  $('[data-screen="settings"]').innerHTML = `
+    <div class="screen-head"><div><h1>Settings</h1><div class="sub">Pay details &amp; your data</div></div></div>
+
+    <div class="card">
+      <div class="eyebrow">You</div>
+      <div class="field"><label>Your name (for the greeting)</label><input class="input" type="text" value="${esc(p.name)}" data-bind="profile.name" data-type="string" maxlength="24" placeholder="Optional" /></div>
+      <div class="field"><label>How often are you paid?</label>${segHTML("payFreq", Object.entries(PAY_FREQ).map(([v, o]) => ({ v, t: o.label.replace("Every 4 weeks", "4-weekly") })), p.payFreq)}</div>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">Deductions</div>
+      <div class="field"><label>Pension contribution (% of qualifying earnings)</label>
+        <div class="input-wrap"><input class="input" type="number" inputmode="decimal" step="0.5" min="0" max="100" value="${p.pensionPct}" data-bind="profile.pensionPct" /><span class="suffix">%</span></div>
+        <div class="hint">Auto-enrolment minimum is 5% from you. Leave at 0 if you've opted out.</div>
+      </div>
+      <div class="toggle"><div><div class="t-lbl">Pension taken before tax</div><div class="t-sub">Most workplace schemes do this ("net pay"). NEST &amp; The People's Pension take it after tax.</div></div>
+        <label class="switch"><input type="checkbox" ${p.pensionBeforeTax !== false ? "checked" : ""} data-bind="profile.pensionBeforeTax" data-type="bool" /><span></span></label></div>
+      <div class="field" style="margin-top:14px"><label>Student loan</label>
+        <select class="input" data-bind="profile.studentLoan" data-type="string">
+          <option value="none" ${p.studentLoan === "none" ? "selected" : ""}>None</option>
+          ${Object.entries(TAX_YEAR.studentLoan).map(([k, o]) => `<option value="${k}" ${p.studentLoan === k ? "selected" : ""}>${o.label} — 9% over £${fmt0(o.threshold)}</option>`.replace("Postgraduate — 9%", "Postgraduate — 6%")).join("")}
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">Your data</div>
+      <div class="hint" style="margin:-4px 0 12px">Everything lives on this device. Nothing is sent anywhere. Back it up before switching phones.</div>
+      <div class="btn-row">
+        <button class="btn secondary" data-act="export">Export backup</button>
+        <button class="btn secondary" data-act="import">Import</button>
+      </div>
+      <input type="file" id="import-file" accept="application/json,.json" class="hidden" />
+      <button class="btn danger" style="margin-top:10px" data-act="reset">Reset everything</button>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">About</div>
+      <div class="kv"><span class="k">Version</span><span>${APP_VERSION}</span></div>
+      <div class="kv"><span class="k">Tax year</span><span>${TAX_YEAR.label} (England, Wales &amp; NI)</span></div>
+      <div class="kv"><span class="k">Privacy</span><a href="privacy.html" target="_blank" rel="noopener" style="color:var(--accent)">Privacy policy</a></div>
+      <div class="kv"><span class="k">Made by</span><span>CodedForge</span></div>
+    </div>
+    <div class="footer">Pence is a planning tool, not financial advice. Figures are estimates based on standard UK rates.</div>
+  `;
+}
+
+/* =====================================================================
+   ONBOARDING
+   ===================================================================== */
+const ob = { step: 0, hourly: "", hours: "", payFreq: "monthly", goalLabel: "", goal: "", amount: "", freq: "week" };
+function renderOnboarding() {
+  const el = $("#onboarding");
+  el.classList.remove("hidden");
+  const dots = `<div class="dots">${[0, 1, 2].map(i => `<i class="${i <= ob.step ? "on" : ""}"></i>`).join("")}</div>`;
+  const steps = [
+    `<h1>What's your hourly rate?</h1><p class="lead">Just your basic rate — we'll sort overtime and shift premiums later.</p>
+     <div class="field"><div class="input-wrap"><span class="prefix">£</span><input class="input lg" type="number" inputmode="decimal" step="0.01" min="0" id="ob-hourly" value="${ob.hourly}" placeholder="${TAX_YEAR.nationalLivingWage}" autofocus /></div>
+     <div class="hint">National Living Wage is £${TAX_YEAR.nationalLivingWage} (21+).</div></div>`,
+    `<h1>How much do you usually work?</h1><p class="lead">A typical week is fine — you can log real shifts as you go.</p>
+     <div class="field"><label>Hours per week</label><div class="input-wrap"><input class="input lg" type="number" inputmode="decimal" step="0.5" min="0" id="ob-hours" value="${ob.hours}" placeholder="37.5" autofocus /><span class="suffix">hrs</span></div></div>
+     <div class="field"><label>How often are you paid?</label>${segHTML("ob-freq", Object.entries(PAY_FREQ).map(([v, o]) => ({ v, t: o.label.replace("Every 4 weeks", "4-weekly") })), ob.payFreq)}</div>`,
+    `<h1>What are you saving for?</h1><p class="lead">Give it a name — it's a lot easier to skip a takeaway for "Ibiza" than for "savings".</p>
+     <div class="field"><label>Goal</label><input class="input" type="text" id="ob-label" value="${esc(ob.goalLabel)}" placeholder="e.g. Holiday, car, house deposit" maxlength="30" autofocus /></div>
+     <div class="row2">
+       <div class="field"><label>Target amount</label><div class="input-wrap"><span class="prefix">£</span><input class="input" type="number" inputmode="decimal" step="1" min="0" id="ob-goal" value="${ob.goal}" placeholder="2000" /></div></div>
+       <div class="field"><label>I can put aside</label><div class="with-select"><div class="input-wrap"><span class="prefix">£</span><input class="input" type="number" inputmode="decimal" step="1" min="0" id="ob-amount" value="${ob.amount}" placeholder="50" /></div><select class="input" id="ob-sfreq"><option value="week" ${ob.freq === "week" ? "selected" : ""}>/wk</option><option value="month" ${ob.freq === "month" ? "selected" : ""}>/mo</option></select></div></div>
+     </div>`,
+  ];
+  el.innerHTML = `<div class="ob">
+    <div class="logo"><img src="icon.svg" alt="" /> Pence</div>
+    ${dots}
+    ${steps[ob.step]}
+    <div class="grow"></div>
+    <div class="btn-row" style="margin-top:24px">
+      ${ob.step > 0 ? `<button class="btn secondary" data-ob="back">Back</button>` : `<button class="btn ghost" data-ob="skip">Skip for now</button>`}
+      <button class="btn" data-ob="next">${ob.step === 2 ? "Let's go" : "Continue"}</button>
+    </div>
+  </div>`;
+  $$('[data-seg="ob-freq"] button').forEach(b => b.addEventListener("click", () => { ob.payFreq = b.dataset.v; $$('[data-seg="ob-freq"] button').forEach(x => x.classList.remove("on")); b.classList.add("on"); haptic(); }));
+  el.querySelectorAll("[data-ob]").forEach(b => b.addEventListener("click", () => onboardingAction(b.dataset.ob)));
+  el.querySelectorAll("input").forEach(i => i.addEventListener("keydown", ev => { if (ev.key === "Enter") onboardingAction("next"); }));
+}
+function onboardingAction(a) {
+  haptic();
+  if (a === "skip") return finishOnboarding();
+  if (a === "back") { ob.step--; return renderOnboarding(); }
+  if (ob.step === 0) { ob.hourly = $("#ob-hourly").value; if (num(ob.hourly) <= 0) return toast("Enter your hourly rate"); }
+  if (ob.step === 1) { ob.hours = $("#ob-hours").value; if (num(ob.hours) <= 0) return toast("Enter your usual hours"); }
+  if (ob.step === 2) { ob.goalLabel = $("#ob-label").value; ob.goal = $("#ob-goal").value; ob.amount = $("#ob-amount").value; ob.freq = $("#ob-sfreq").value; return finishOnboarding(); }
+  ob.step++; renderOnboarding();
+}
+function finishOnboarding() {
+  if (num(ob.hourly) > 0) S.profile.hourly = num(ob.hourly);
+  if (num(ob.hours) > 0) S.profile.baseHours = num(ob.hours);
+  S.profile.payFreq = ob.payFreq;
+  if (ob.goalLabel.trim()) S.savings.goalLabel = ob.goalLabel.trim();
+  if (num(ob.goal) > 0) S.savings.goal = num(ob.goal);
+  if (ob.amount !== "") S.savings.amount = num(ob.amount);
+  S.savings.freq = ob.freq;
+  S.onboarded = true; save();
+  $("#onboarding").classList.add("hidden");
+  haptic("success"); go("home");
+}
+
+/* =====================================================================
+   DATA EXPORT / IMPORT
+   ===================================================================== */
+async function exportData() {
+  const json = JSON.stringify(S, null, 2);
+  const name = `pence-backup-${toKey(today())}.json`;
+  try {
+    const file = new File([json], name, { type: "application/json" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: "Pence backup" }); return; }
+  } catch (e) { if (e && e.name === "AbortError") return; }
+  if (!isNative) {
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([json], { type: "application/json" })); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove(); return;
+  }
+  openSheet(`<h2>Your backup</h2><p class="hint" style="margin-bottom:10px">Copy this and keep it somewhere safe (notes, email to yourself).</p>
+    <textarea class="input" rows="8" readonly style="font-family:monospace;font-size:12px">${esc(json)}</textarea>
+    <button class="btn" style="margin-top:12px" data-act="copy-backup">Copy to clipboard</button>`);
+}
+function importData(file) {
+  const rd = new FileReader();
+  rd.onload = () => {
     try {
-      const data = JSON.parse(localStorage.getItem("pence_inputs"));
-      if (data) INPUT_IDS.forEach(id => { if (data[id] !== undefined) document.getElementById(id).value = data[id]; });
-    } catch {}
-    try {
-      const extra = JSON.parse(localStorage.getItem("pence_extra_incomes"));
-      if (Array.isArray(extra) && extra.length) extraIncomes = extra;
-    } catch {}
+      const data = JSON.parse(rd.result);
+      if (!data || typeof data !== "object") throw 0;
+      S = deepMerge(DEFAULT_STATE, data); S.onboarded = true; save();
+      toast("Backup restored"); haptic("success"); go("home");
+    } catch { toast("That file doesn't look like a Pence backup"); }
+  };
+  rd.readAsText(file);
+}
+
+/* =====================================================================
+   EVENT WIRING — one delegated handler for clicks, one for inputs
+   ===================================================================== */
+document.addEventListener("click", ev => {
+  const el = ev.target.closest("[data-act]");
+  if (!el) return;
+  ev.preventDefault();
+  const act = el.dataset.act;
+  switch (act) {
+    case "log-shift":     haptic(); shiftSheet(null, toKey(today())); break;
+    case "add-shift":     haptic(); shiftSheet(null, el.dataset.date); break;
+    case "edit-shift":    haptic(); shiftSheet(S.shifts.find(s => s.id === el.dataset.id)); break;
+    case "save-shift":    saveShiftFromSheet(el.dataset.id, el.dataset.new === "true"); break;
+    case "delete-shift":  S.shifts = S.shifts.filter(s => s.id !== el.dataset.id); save(); closeSheet(); haptic("medium"); render(); toast("Shift deleted"); break;
+    case "week-prev":     haptic(); ui.shiftsWeek = addDays(ui.shiftsWeek, -7); renderShifts(); break;
+    case "week-next":     haptic(); ui.shiftsWeek = addDays(ui.shiftsWeek, 7); renderShifts(); break;
+    case "week-today":    haptic(); ui.shiftsWeek = weekStart(today()); renderShifts(); break;
+    case "copy-last-week": {
+      const prev = weekShifts(addDays(ui.shiftsWeek, -7));
+      prev.forEach(s => S.shifts.push({ ...s, id: uid(), date: toKey(addDays(fromKey(s.date), 7)) }));
+      S.shifts.sort((a, b) => a.date.localeCompare(b.date)); save(); haptic("success"); renderShifts(); toast(`Copied ${plural(prev.length, "shift")}`); break;
+    }
+    case "goto-payslip":  haptic(); go("payslip"); break;
+    case "goto-shifts":   haptic(); go("shifts"); break;
+    case "goto-settings": haptic(); go("settings"); break;
+    case "period-prev":   haptic(); ui.payslipEnd = shiftPeriod(ui.payslipEnd, -1); ui.payslipActual = ""; ui.payslipHours = ""; renderPayslip(); break;
+    case "period-next":   haptic(); ui.payslipEnd = shiftPeriod(ui.payslipEnd, 1); ui.payslipActual = ""; ui.payslipHours = ""; renderPayslip(); break;
+    case "save-check": {
+      const per = periodBounds(ui.payslipEnd), p = S.profile;
+      const a = toKey(per.start), b = toKey(per.end);
+      const shifts = S.shifts.filter(s => s.date >= a && s.date <= b);
+      const gross = shifts.length ? shifts.reduce((x, s) => x + shiftGross(s, p), 0) : num(ui.payslipHours) * p.hourly * (1 + (p.shiftPct || 0) / 100);
+      const d = calcDeductions(gross, per.fraction, p);
+      S.checks = S.checks.filter(c => c.label !== per.label);
+      S.checks.push({ id: uid(), label: per.label, start: a, end: b, gross, expectedNet: d.net, actualNet: num(ui.payslipActual) });
+      save(); haptic("success"); toast("Check saved"); renderPayslip(); break;
+    }
+    case "toggle-saved": {
+      const pk = periodKey(), amt = S.savings.amount || 0;
+      if ((S.deposits[pk] || 0) >= amt) { delete S.deposits[pk]; S.savings.balance = Math.max(0, S.savings.balance - amt); haptic(); toast("Undone"); }
+      else { S.deposits[pk] = amt; S.savings.balance += amt; haptic("success"); toast(`£${fmt0(amt)} added to ${S.savings.goalLabel || "savings"}`); }
+      save(); renderHome(); break;
+    }
+    case "edit-balance":
+      haptic();
+      openSheet(`<h2>Update balance</h2><p class="hint" style="margin-bottom:12px">What's actually in your savings right now?</p>
+        <div class="field">${moneyInput("bal-input", S.savings.balance, "autofocus")}</div>
+        <button class="btn" style="margin-top:8px" data-act="save-balance">Save</button>`);
+      break;
+    case "save-balance":  S.savings.balance = num($("#bal-input").value); save(); closeSheet(); haptic("success"); renderHome(); break;
+    case "add-extra":     haptic(); S.extraIncomes.push({ label: "", amount: 0, freqMonths: 1 }); save(); renderPlan(); $$("#extra-list input[type=text]").pop()?.focus(); break;
+    case "remove-extra":  haptic(); S.extraIncomes.splice(+el.dataset.i, 1); save(); renderPlan(); break;
+    case "export":        haptic(); exportData(); break;
+    case "copy-backup":   navigator.clipboard?.writeText(JSON.stringify(S)).then(() => toast("Copied")); break;
+    case "import":        haptic(); $("#import-file").click(); break;
+    case "reset":
+      if (confirm("Delete all your Pence data on this device? This can't be undone.")) {
+        localStorage.removeItem(STORE_KEY); localStorage.removeItem("pence_inputs"); localStorage.removeItem("pence_extra_incomes");
+        S = deepMerge(DEFAULT_STATE, {}); ob.step = 0; renderOnboarding(); toast("Reset");
+      }
+      break;
   }
+});
 
-  // Load saved data, render extra incomes, then calculate
-  loadAll();
-  renderExtraIncomes();
-  updateExpTotal();
-  document.getElementById("calc-btn").click();
+document.addEventListener("change", ev => {
+  if (ev.target.id === "import-file" && ev.target.files[0]) { importData(ev.target.files[0]); ev.target.value = ""; }
+});
 
-  // Live recalculate and save as user types
-  document.querySelectorAll("input:not(#extra-income-list input)").forEach(el => {
-    el.addEventListener("input", () => {
-      updateExpTotal();
-      saveAll();
-      document.getElementById("calc-btn").click();
-    });
-  });
+let planTimer;
+document.addEventListener("input", ev => {
+  const el = ev.target;
+  if (el.id === "ps-hours") { ui.payslipHours = el.value; clearTimeout(planTimer); planTimer = setTimeout(() => { const v = el.value; renderPayslip(); const n = $("#ps-hours"); if (n) { n.focus(); n.value = v; } }, 350); return; }
+  if (el.id === "ps-actual") { ui.payslipActual = el.value; clearTimeout(planTimer); planTimer = setTimeout(() => { const v = el.value; renderPayslip(); const n = $("#ps-actual"); if (n) { n.focus(); n.value = v; } }, 350); return; }
 
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js"));
+  if (el.dataset.extra !== undefined) {
+    const inc = S.extraIncomes[+el.dataset.extra]; if (!inc) return;
+    const k = el.dataset.k;
+    inc[k] = k === "label" ? el.value : k === "freqMonths" ? parseInt(el.value) : num(el.value);
+    save(); renderPlanResults(); return;
   }
+  const path = el.dataset.bind;
+  if (!path) return;
+  const type = el.dataset.type || "number";
+  const val = type === "bool" ? el.checked : type === "string" ? el.value : type === "int" ? Math.max(1, parseInt(el.value) || 1) : num(el.value);
+  setPath(path, val); save();
+  if (ui.screen === "plan") { clearTimeout(planTimer); planTimer = setTimeout(renderPlanResults, 250); }
+});
+
+document.addEventListener("click", ev => {
+  const b = ev.target.closest('[data-seg="payFreq"] button');
+  if (!b) return;
+  S.profile.payFreq = b.dataset.v; ui.payslipEnd = null; save(); haptic(); renderSettings();
+});
+
+/* =====================================================================
+   BOOT
+   ===================================================================== */
+initNative();
+if (!S.onboarded) renderOnboarding(); else go("home");
+
+if (!isNative && "serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+}
 </script>
-
-<footer class="footer">
-  Pence &mdash; a <strong style="color:var(--text)">CodedForge</strong> project &nbsp;|&nbsp; &copy; <span id="yr"></span> CodedForge. All rights reserved.
-  <script>document.getElementById("yr").textContent = new Date().getFullYear();</script>
-</footer>
 </body>
 </html>

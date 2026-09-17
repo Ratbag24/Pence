@@ -1,15 +1,28 @@
 {
   "name": "pence",
-  "version": "1.0.0",
-  "description": "Every pence counts — project your savings and track your goals",
+  "version": "2.0.0",
+  "description": "Budgeting for hourly and shift workers — log shifts, check your payslip, hit your savings goal",
   "private": true,
   "scripts": {
+    "test:e2e": "node scripts/e2e.js",
+    "screenshots": "node scripts/screenshots.js",
     "sync": "cap sync",
+    "icons": "capacitor-assets generate --android --ios --iconBackgroundColor '#1a1d27' --iconBackgroundColorDark '#1a1d27' --splashBackgroundColor '#0f1117' --splashBackgroundColorDark '#0f1117'",
     "open:android": "cap open android",
     "open:ios": "cap open ios"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/app": "^8.1.1",
     "@capacitor/cli": "^8.4.1",
-    "@capacitor/core": "^8.4.1"
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.4.1",
+    "@capacitor/status-bar": "^8.0.3",
+    "chart.js": "^4.5.1"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "playwright": "^1.56.1"
   }
 }
