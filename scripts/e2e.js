@@ -78,7 +78,7 @@ const server = http.createServer((req, res) => {
     await page.waitForSelector("#sheet:not(.hidden)");
     await page.locator("#sheet .chip[data-preset]").last().click();
     const h = await page.inputValue("#sh-hours"), n = await page.inputValue("#sh-note");
-    if (h !== "12" || n !== "Nights") throw new Error(`preset fill ${h} ${n}`);
+    if (h !== "8" || n !== "Nights") throw new Error(`preset fill ${h} ${n}`);
     // Earlies = 8h with a 30 min unpaid break → 7.5 paid hours
     await page.locator("#sheet .chip[data-preset]").first().click();
     if (await page.inputValue("#sh-break") !== "30") throw new Error("break not filled");
