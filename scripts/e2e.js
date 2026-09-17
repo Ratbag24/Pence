@@ -29,11 +29,14 @@ const server = http.createServer((req, res) => {
 
   await page.goto(url);
   await step("onboarding shows", async () => { await page.waitForSelector("#onboarding:not(.hidden)"); await snap("01-onboarding-1"); });
-  await step("onboarding step 1", async () => { await page.fill("#ob-hourly", "13.50"); await page.click('[data-ob="next"]'); await page.waitForSelector("#ob-hours"); });
+  await step("onboarding step 1", async () => { await page.fill("#ob-hourly", "13.50"); await page.fill("#ob-shift", "14.85"); await page.click('[data-ob="next"]'); await page.waitForSelector("#ob-hours"); });
   await step("onboarding step 2", async () => { await page.fill("#ob-hours", "37.5"); await page.click('[data-seg="ob-freq"] [data-v="weekly"]'); await page.click('[data-ob="next"]'); await page.waitForSelector("#ob-label"); await snap("02-onboarding-3"); });
   await step("onboarding finish", async () => {
     await page.fill("#ob-label", "Ibiza"); await page.fill("#ob-goal", "1500"); await page.fill("#ob-amount", "75"); await page.click('[data-ob="next"]');
     await page.waitForSelector("#onboarding.hidden", { state: "attached" }); await page.waitForSelector('[data-screen="home"].active');
+    const prof = await page.evaluate(() => JSON.parse(localStorage.getItem("pence_v2")).profile);
+    if (Math.abs(prof.shiftPct - 10) > 0.01 || prof.shiftMode !== "rate" || !prof.usualAtShiftRate) throw new Error("shift rate not applied: " + JSON.stringify(prof));
+    console.log("   shift rate £14.85 on £13.50 →", prof.shiftPct.toFixed(2) + "% premium, mode", prof.shiftMode);
   });
   await step("home shows planned take-home", async () => {
     const big = await text('[data-screen="home"] .big');
@@ -64,6 +67,26 @@ const server = http.createServer((req, res) => {
     console.log("   week hours:", await text('[data-screen="shifts"] .stat .val'));
     await snap("04-shifts");
   });
+  await step("one-tap preset logs a shift", async () => {
+    const sun = page.locator('.day-row').nth(6).locator('[data-act="quick-shift"]').first();
+    const label = (await sun.textContent()).trim();
+    await sun.click();
+    await page.waitForFunction(() => document.querySelectorAll(".shift-pill").length === 6);
+    console.log("   tapped:", label);
+    // preset chip in the sheet fills hours + note
+    await page.locator('[data-act="add-shift"]').first().click();
+    await page.waitForSelector("#sheet:not(.hidden)");
+    await page.locator("#sheet .chip[data-preset]").last().click();
+    const h = await page.inputValue("#sh-hours"), n = await page.inputValue("#sh-note");
+    if (h !== "12" || n !== "Nights") throw new Error(`preset fill ${h} ${n}`);
+    // Earlies = 8h with a 30 min unpaid break → 7.5 paid hours
+    await page.locator("#sheet .chip[data-preset]").first().click();
+    if (await page.inputValue("#sh-break") !== "30") throw new Error("break not filled");
+    const prev = await text("#sh-preview"); if (!prev.startsWith("7.5 paid hrs")) throw new Error("preview: " + prev);
+    console.log("   preview:", prev);
+    await page.click("#sheet-backdrop", { position: { x: 10, y: 10 } });
+    await page.waitForSelector("#sheet.hidden", { state: "attached" });
+  });
   await step("edit + delete a shift", async () => {
     await page.locator(".shift-pill").last().click();
     await page.waitForSelector("#sheet:not(.hidden)");
@@ -73,13 +96,13 @@ const server = http.createServer((req, res) => {
     await page.locator(".shift-pill").last().click();
     await page.click('[data-act="delete-shift"]');
     await page.waitForSelector("#sheet.hidden", { state: "attached" });
-    if (await page.locator(".shift-pill").count() !== 4) throw new Error("delete failed");
+    if (await page.locator(".shift-pill").count() !== 5) throw new Error("delete failed");
   });
   await step("prev week + copy last week", async () => {
     await page.click('[data-act="week-next"]');
     await page.click('[data-act="copy-last-week"]');
     await page.waitForSelector(".shift-pill");
-    if (await page.locator(".shift-pill").count() !== 4) throw new Error("copy failed");
+    if (await page.locator(".shift-pill").count() !== 5) throw new Error("copy failed");
     await page.click('[data-act="week-today"]');
   });
   await step("home reflects logged shifts", async () => {
@@ -119,6 +142,13 @@ const server = http.createServer((req, res) => {
     await page.evaluate(() => document.querySelectorAll("details.section").forEach(d => d.open = true));
     const rows = await page.locator("#plan-results tbody tr").count();
     if (rows < 12) throw new Error("rows " + rows);
+    // plan: shift-rate field shows £14.85, changing basic keeps it, switching to % shows 10
+    const sr = await page.inputValue("#pl-shiftrate"); if (sr !== "14.85") throw new Error("shift rate field " + sr);
+    await page.fill('[data-bind="profile.hourly"]', "14"); await page.waitForTimeout(300);
+    let prof = await page.evaluate(() => JSON.parse(localStorage.getItem("pence_v2")).profile);
+    if (Math.abs(prof.hourly * (1 + prof.shiftPct / 100) - 14.85) > 0.001) throw new Error("rate not kept: " + JSON.stringify(prof));
+    await page.selectOption('[data-bind="profile.shiftMode"]', "pct"); await page.waitForSelector('[data-bind="profile.shiftPct"]');
+    await page.fill('[data-bind="profile.hourly"]', "13.50"); await page.fill('[data-bind="profile.shiftPct"]', "10"); await page.waitForTimeout(300);
     await page.fill('[data-bind="expenses.rent"]', "600");
     await page.waitForTimeout(400);
     console.log("   kpis:", (await page.locator("#plan-results .kpi").allTextContents()).map(s => s.replace(/\s+/g, " ").trim()).join(" | "));
