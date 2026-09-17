@@ -102,7 +102,7 @@ Before each release update all three (they should match):
 
 ## Tax figures
 
-`TAX_YEAR` at the top of the `<script>` in `docs/index.html` holds every rate and threshold in one place. Income Tax and NI thresholds are frozen until April 2028; student-loan thresholds change each April — update them from gov.uk and bump the `label`.
+`TAX_YEAR` at the top of `docs/tax.js` holds every rate and threshold in one place. Income Tax and NI thresholds are frozen until April 2028; student-loan thresholds change each April — update them from gov.uk, bump the `label`, and run `npm run build:rates` so the landing pages match.
 
 ## Licence
 
