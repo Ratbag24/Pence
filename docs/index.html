@@ -382,6 +382,7 @@ const DEFAULT_STATE = {
     hourly: 12.71, shiftPct: 0, baseHours: 37.5, otHours: 0, otMult: 1.5,
     shiftMode: "pct",           // how the shift rate is entered: "pct" on top, or "rate" £/hr
     usualAtShiftRate: true,     // your normal hours are paid at the shift rate
+    weekStartDay: 1,            // 1 = Monday, 0 = Sunday — drives the week view, "this week" and weekly pay periods
     payFreq: "monthly",           // weekly | fortnightly | fourweekly | monthly
     pensionPct: 0, pensionBeforeTax: true,
     studentLoan: "none",
@@ -420,10 +421,11 @@ const fromKey = k => { const [y, m, d] = k.split("-").map(Number); return new Da
 const today   = () => { const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate()); };
 const addDays   = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 const addMonths = (d, n) => { const x = new Date(d); x.setMonth(x.getMonth() + n); return x; };
-const weekStart = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); return addDays(x, -((x.getDay() + 6) % 7)); };
+const weekStart = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); const start = (typeof S !== "undefined" && S.profile.weekStartDay === 0) ? 0 : 1; return addDays(x, -((x.getDay() - start + 7) % 7)); };
 const monthStart = d => new Date(d.getFullYear(), d.getMonth(), 1);
 const monthEnd   = d => new Date(d.getFullYear(), d.getMonth() + 1, 0);
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const DAYS_SUN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MON  = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const MONL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const fmtDay  = d => `${d.getDate()} ${MON[d.getMonth()]}`;
@@ -726,7 +728,7 @@ function renderShifts() {
     const list = shifts.filter(s => s.date === k);
     days.push(`
       <div class="day-row ${k === tk ? "today" : ""}">
-        <div class="d"><div class="dn">${DAYS[i]}</div><div class="dd">${day.getDate()}</div></div>
+        <div class="d"><div class="dn">${DAYS_SUN[day.getDay()]}</div><div class="dd">${day.getDate()}</div></div>
         <div class="shifts">
           ${list.map(s => `
             <div class="shift-pill" data-act="edit-shift" data-id="${s.id}">
@@ -1125,6 +1127,8 @@ function renderSettings() {
       <div class="eyebrow">You</div>
       <div class="field"><label>Your name (for the greeting)</label><input class="input" type="text" value="${esc(p.name)}" data-bind="profile.name" data-type="string" maxlength="24" placeholder="Optional" /></div>
       <div class="field"><label>How often are you paid?</label>${segHTML("payFreq", Object.entries(PAY_FREQ).map(([v, o]) => ({ v, t: o.label.replace("Every 4 weeks", "4-weekly") })), p.payFreq)}</div>
+      <div class="field"><label>Week starts on</label>${segHTML("weekStart", [{ v: 1, t: "Monday" }, { v: 0, t: "Sunday" }], p.weekStartDay === 0 ? 0 : 1)}
+        <div class="hint">Sets the Shifts week, "this week" on Home and weekly pay periods. Pick Sunday if your nights run Sunday to Thursday.</div></div>
       <div class="field"><label>Shift types</label><div class="chips">${S.presets.map(pr => `<span class="chip sm">${esc(pr.name)} ${hrs(presetPaid(pr))}h</span>`).join("")}<button class="chip sm dashed" data-act="edit-presets">✎ Edit</button></div></div>
     </div>
 
@@ -1375,9 +1379,10 @@ document.addEventListener("input", ev => {
 });
 
 document.addEventListener("click", ev => {
-  const b = ev.target.closest('[data-seg="payFreq"] button');
-  if (!b) return;
-  S.profile.payFreq = b.dataset.v; ui.payslipEnd = null; save(); haptic(); renderSettings();
+  const pf = ev.target.closest('[data-seg="payFreq"] button');
+  if (pf) { S.profile.payFreq = pf.dataset.v; ui.payslipEnd = null; save(); haptic(); renderSettings(); return; }
+  const wk = ev.target.closest('[data-seg="weekStart"] button');
+  if (wk) { S.profile.weekStartDay = +wk.dataset.v; ui.shiftsWeek = weekStart(today()); ui.payslipEnd = null; save(); haptic(); renderSettings(); }
 });
 
 /* =====================================================================

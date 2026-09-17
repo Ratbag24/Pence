@@ -172,6 +172,17 @@ const server = http.createServer((req, res) => {
     console.log("   monthly 160h:", kvs.join(" | "));
     if (!kvs.some(k => k.includes("Pension"))) throw new Error("no pension line");
   });
+  await step("week can start on Sunday", async () => {
+    await page.click('[data-go="settings"]');
+    await page.click('[data-seg="weekStart"] [data-v="0"]');
+    await page.click('[data-go="shifts"]');
+    const first = (await page.locator(".day-row .dn").first().textContent()).trim();
+    const last = (await page.locator(".day-row .dn").last().textContent()).trim();
+    if (first !== "Sun" || last !== "Sat") throw new Error(`week runs ${first}–${last}`);
+    await page.click('[data-go="settings"]'); await page.click('[data-seg="weekStart"] [data-v="1"]');
+    await page.click('[data-go="shifts"]');
+    if ((await page.locator(".day-row .dn").first().textContent()).trim() !== "Mon") throw new Error("Monday not restored");
+  });
   await step("persists across reload", async () => {
     await page.reload();
     await page.waitForSelector('[data-screen="home"].active');
