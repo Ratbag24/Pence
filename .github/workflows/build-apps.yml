@@ -226,11 +226,15 @@ jobs:
           set -euo pipefail
           VERSION=$(node -p "require('./package.json').version")
           mkdir -p out
-          cp dist/android-debug-apk/app-debug.apk "out/Pence-${VERSION}-debug.apk"
-          for f in dist/android-release/*.aab; do [ -e "$f" ] && cp "$f" "out/Pence-${VERSION}-playstore.aab"; done
-          for f in dist/android-release/*.apk; do [ -e "$f" ] && cp "$f" "out/Pence-${VERSION}-release-$(basename "$f" .apk | sed 's/app-release-//').apk"; done
-          for f in dist/ios-archive/*.ipa dist/ios-archive/ipa/*.ipa; do [ -e "$f" ] && cp "$f" "out/Pence-${VERSION}.ipa"; done
-          if [ -d dist/ios-archive/App.xcarchive ]; then (cd dist/ios-archive && zip -qr "../../out/Pence-${VERSION}-ios.xcarchive.zip" App.xcarchive); fi
+          echo "--- downloaded artifacts ---"; find dist -type f | head -50
+          # upload-artifact keeps the paths below the common ancestor, so search recursively
+          find dist -name '*-debug.apk'   -exec cp {} "out/Pence-${VERSION}-debug.apk" ';'
+          find dist -name '*.aab'         -exec cp {} "out/Pence-${VERSION}-playstore.aab" ';'
+          find dist -name 'app-release*.apk' -exec cp {} "out/Pence-${VERSION}-release.apk" ';'
+          find dist -name '*.ipa'         -exec cp {} "out/Pence-${VERSION}.ipa" ';'
+          ARCH=$(find dist -type d -name 'App.xcarchive' | head -1)
+          if [ -n "$ARCH" ]; then (cd "$(dirname "$ARCH")" && zip -qr "$GITHUB_WORKSPACE/out/Pence-${VERSION}-ios.xcarchive.zip" App.xcarchive); fi
+          test -f "out/Pence-${VERSION}-debug.apk" || { echo "::error::debug APK missing from the release"; exit 1; }
           ls -la out
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           if [ "${{ github.ref_type }}" = "tag" ]; then
