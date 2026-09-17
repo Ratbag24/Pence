@@ -133,6 +133,8 @@
       padding: 9px 6px; border-radius: 8px; cursor: pointer; font-family: inherit; transition: all .15s; white-space: nowrap;
     }
     .seg button.on { background: var(--accent); color: #fff; }
+    .seg.mini { padding: 2px; gap: 2px; }
+    .seg.mini button { padding: 4px 9px; font-size: .72rem; border-radius: 6px; }
 
     .btn {
       display: inline-flex; align-items: center; justify-content: center; gap: 8px;
@@ -383,6 +385,7 @@ const DEFAULT_STATE = {
     shiftMode: "pct",           // how the shift rate is entered: "pct" on top, or "rate" £/hr
     usualAtShiftRate: true,     // your normal hours are paid at the shift rate
     weekStartDay: 1,            // 1 = Monday, 0 = Sunday — drives the week view, "this week" and weekly pay periods
+    homePeriod: "week",         // Home card shows "this week" or "this month"
     payFreq: "monthly",           // weekly | fortnightly | fourweekly | monthly
     pensionPct: 0, pensionBeforeTax: true,
     studentLoan: "none",
@@ -599,18 +602,28 @@ function greeting() {
 
 function renderHome() {
   const p = S.profile, sv = S.savings;
+  const isMonth = p.homePeriod === "month";
   const ws = weekStart(today());
-  const shifts = weekShifts(ws);
+  const ms = monthStart(today());
+  const inRange = (a, b) => { const ka = toKey(a), kb = toKey(b); return S.shifts.filter(s => s.date >= ka && s.date <= kb); };
+  const periodShifts = (offset) => isMonth
+    ? inRange(monthStart(addMonths(ms, offset)), monthEnd(addMonths(ms, offset)))
+    : weekShifts(addDays(ws, 7 * offset));
+  const fraction = isMonth ? 1 / 12 : 1 / 52;
+  const plannedWeekGross = planWeeklyGross(p);
+  const plannedGross = isMonth ? plannedWeekGross * WEEKS_PER_YEAR / MONTHS_PER_YEAR : plannedWeekGross;
+  const plannedHours = isMonth ? (p.baseHours || 0) * WEEKS_PER_YEAR / MONTHS_PER_YEAR : (p.baseHours || 0);
+  const periodName = isMonth ? "month" : "week";
+
+  const shifts = periodShifts(0);
   const hours = shifts.reduce((a, s) => a + s.hours, 0);
   const gross = shifts.reduce((a, s) => a + shiftGross(s, p), 0);
-  const plannedGross = planWeeklyGross(p);
   const useGross = shifts.length ? gross : plannedGross;
-  const d = calcDeductions(useGross, 1 / 52, p);
+  const d = calcDeductions(useGross, fraction, p);
 
-  const lastWs = addDays(ws, -7);
-  const lastShifts = weekShifts(lastWs);
+  const lastShifts = periodShifts(-1);
   const lastGross = lastShifts.reduce((a, s) => a + shiftGross(s, p), 0);
-  const lastNet = lastShifts.length ? calcDeductions(lastGross, 1 / 52, p).net : null;
+  const lastNet = lastShifts.length ? calcDeductions(lastGross, fraction, p).net : null;
 
   // savings nudge
   const pk = periodKey();
@@ -627,18 +640,18 @@ function renderHome() {
   // extra-shift lever
   const recent = S.shifts.filter(s => s.date >= toKey(addDays(ws, -56)));
   const avgShift = recent.length ? recent.reduce((a, s) => a + s.hours, 0) / recent.length : Math.min(12, Math.max(4, (p.baseHours || 37.5) / 5));
-  const annualGross = plannedGross * 52;
+  const annualGross = plannedWeekGross * 52;
   const shiftGrossAmt = avgShift * usualRate(p);
   const extraNetMonthly = calcDeductions(annualGross + shiftGrossAmt * 12, 1, p).net - calcDeductions(annualGross, 1, p).net;
   const nLever = monthsToGoal(sv.balance, monthly + extraNetMonthly / 12, sv.interestRate, sv.goal);
   const sooner = n != null && nLever != null ? n - nLever : 0;
 
-  // recent weeks bars
+  // recent weeks / months bars
   const bars = [];
   for (let i = 5; i >= 0; i--) {
-    const w = addDays(ws, -7 * i);
-    const g = weekShifts(w).reduce((a, s) => a + shiftGross(s, p), 0);
-    bars.push({ w, g });
+    const g = periodShifts(-i).reduce((a, s) => a + shiftGross(s, p), 0);
+    const start = isMonth ? addMonths(ms, -i) : addDays(ws, -7 * i);
+    bars.push({ label: isMonth ? MON[start.getMonth()] : `${start.getDate()}/${start.getMonth() + 1}`, g });
   }
   const maxBar = Math.max(1, ...bars.map(b => b.g));
   const anyBars = bars.some(b => b.g > 0);
@@ -647,19 +660,19 @@ function renderHome() {
 
   $('[data-screen="home"]').innerHTML = `
     <div class="screen-head">
-      <div><h1>${greeting()}</h1><div class="sub">Week of ${fmtRange(ws, addDays(ws, 6))}</div></div>
+      <div><h1>${greeting()}</h1><div class="sub">${isMonth ? fmtMonthYear(today()) : `Week of ${fmtRange(ws, addDays(ws, 6))}`}</div></div>
     </div>
 
     <div class="card accent">
-      <div class="card-title"><h2>This week</h2><span class="small muted">${shifts.length ? plural(shifts.length, "shift") : "planned"}</span></div>
+      <div class="card-title"><h2>This ${periodName}</h2><div class="seg mini" data-seg="homePeriod"><button type="button" data-v="week" class="${isMonth ? "" : "on"}">Week</button><button type="button" data-v="month" class="${isMonth ? "on" : ""}">Month</button></div></div>
       <div class="big num">${money(d.net)}</div>
-      <div class="sub">estimated take-home · ${money(useGross)} gross${lastNet != null ? ` · <span class="${d.net >= lastNet ? "green" : "red"}">${d.net >= lastNet ? "▲" : "▼"} ${money(Math.abs(d.net - lastNet))} vs last week</span>` : ""}</div>
+      <div class="sub">estimated take-home · ${money(useGross)} gross · ${shifts.length ? plural(shifts.length, "shift") : "planned"}${lastNet != null ? ` · <span class="${d.net >= lastNet ? "green" : "red"}">${d.net >= lastNet ? "▲" : "▼"} ${money(Math.abs(d.net - lastNet))} vs last ${periodName}</span>` : ""}</div>
       <div class="stat-row" style="margin-top:14px">
-        <div class="stat"><div class="lbl">Hours</div><div class="val num">${shifts.length ? hrs(hours) : hrs(p.baseHours)}<span class="muted small"> / ${hrs(p.baseHours)}</span></div></div>
+        <div class="stat"><div class="lbl">Hours</div><div class="val num">${shifts.length ? hrs(hours) : hrs(plannedHours)}<span class="muted small"> / ${hrs(plannedHours)}</span></div></div>
         <div class="stat"><div class="lbl">Tax + NI</div><div class="val num red">${money(d.tax + d.ni)}</div></div>
-        <div class="stat"><div class="lbl">Per hour (net)</div><div class="val num">${money((shifts.length ? hours : p.baseHours) > 0 ? d.net / (shifts.length ? hours : p.baseHours) : 0)}</div></div>
+        <div class="stat"><div class="lbl">Per hour (net)</div><div class="val num">${money((shifts.length ? hours : plannedHours) > 0 ? d.net / (shifts.length ? hours : plannedHours) : 0)}</div></div>
       </div>
-      ${shifts.length ? "" : `<div class="hint" style="margin-top:10px">Based on your usual ${hrs(p.baseHours)} hrs. Log what you actually work for a real figure.</div>`}
+      ${shifts.length ? "" : `<div class="hint" style="margin-top:10px">Based on your usual ${hrs(plannedHours)} hrs a ${periodName}. Log what you actually work for a real figure.</div>`}
       <div class="btn-row" style="margin-top:14px">
         <button class="btn sm secondary" data-act="log-shift">＋ Log a shift</button>
         <button class="btn sm secondary" data-act="goto-payslip">Check payslip</button>
@@ -701,9 +714,9 @@ function renderHome() {
     </div>
 
     <div class="card">
-      <div class="card-title"><h2>Recent weeks</h2><span class="small muted">gross pay</span></div>
-      ${anyBars ? `<div class="bars">${bars.map((b, i) => `<div class="bar-col ${i === 5 ? "now" : ""}"><div class="b" style="height:${Math.max(3, b.g / maxBar * 100)}%" title="£${fmt(b.g)}"></div><div class="l">${b.w.getDate()}/${b.w.getMonth() + 1}</div></div>`).join("")}</div>`
-               : `<div class="empty"><div class="em">📅</div>Log your shifts and your last six weeks will show up here.</div>`}
+      <div class="card-title"><h2>Recent ${periodName}s</h2><span class="small muted">gross pay</span></div>
+      ${anyBars ? `<div class="bars">${bars.map((b, i) => `<div class="bar-col ${i === 5 ? "now" : ""}"><div class="b" style="height:${Math.max(3, b.g / maxBar * 100)}%" title="£${fmt(b.g)}"></div><div class="l">${b.label}</div></div>`).join("")}</div>`
+               : `<div class="empty"><div class="em">📅</div>Log your shifts and your last six ${periodName}s will show up here.</div>`}
     </div>
   `;
 }
@@ -1382,7 +1395,9 @@ document.addEventListener("click", ev => {
   const pf = ev.target.closest('[data-seg="payFreq"] button');
   if (pf) { S.profile.payFreq = pf.dataset.v; ui.payslipEnd = null; save(); haptic(); renderSettings(); return; }
   const wk = ev.target.closest('[data-seg="weekStart"] button');
-  if (wk) { S.profile.weekStartDay = +wk.dataset.v; ui.shiftsWeek = weekStart(today()); ui.payslipEnd = null; save(); haptic(); renderSettings(); }
+  if (wk) { S.profile.weekStartDay = +wk.dataset.v; ui.shiftsWeek = weekStart(today()); ui.payslipEnd = null; save(); haptic(); renderSettings(); return; }
+  const hp = ev.target.closest('[data-seg="homePeriod"] button');
+  if (hp) { S.profile.homePeriod = hp.dataset.v; save(); haptic(); renderHome(); }
 });
 
 /* =====================================================================
