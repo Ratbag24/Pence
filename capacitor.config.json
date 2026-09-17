@@ -2,12 +2,29 @@
   "appId": "app.getpence.pence",
   "appName": "Pence",
   "webDir": "docs",
+  "backgroundColor": "#0f1117",
+  "android": {
+    "backgroundColor": "#0f1117",
+    "allowMixedContent": false,
+    "adjustMarginsForEdgeToEdge": "auto"
+  },
+  "ios": {
+    "backgroundColor": "#0f1117",
+    "contentInset": "automatic",
+    "preferredContentMode": "mobile"
+  },
   "server": {
     "androidScheme": "https"
   },
   "plugins": {
     "SplashScreen": {
-      "launchShowDuration": 0
+      "launchShowDuration": 0,
+      "backgroundColor": "#0f1117"
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#0f1117",
+      "overlaysWebView": false
     }
   }
 }
