@@ -393,10 +393,10 @@ const DEFAULT_STATE = {
   deposits: {},    // periodKey -> amount marked as saved
   checks: [],      // payslip checks { id, start, end, expectedNet, actualNet, gross }
   presets: [       // the shifts you actually work — one tap logs them. type "usual" follows your shift-rate setting
-    { id: "earlies", name: "Earlies", hours: 8,  breakMins: 30, type: "usual" },   // hours = shift length; pay uses hours − break
-    { id: "days",    name: "Days",    hours: 12, breakMins: 0,  type: "usual" },
-    { id: "lates",   name: "Lates",   hours: 8,  breakMins: 30, type: "usual" },
-    { id: "nights",  name: "Nights",  hours: 12, breakMins: 0,  type: "usual" },
+    { id: "earlies", name: "Earlies", hours: 8, breakMins: 30, type: "usual" },   // hours = shift length; pay uses hours − break
+    { id: "days",    name: "Days",    hours: 8, breakMins: 30, type: "usual" },
+    { id: "lates",   name: "Lates",   hours: 8, breakMins: 30, type: "usual" },
+    { id: "nights",  name: "Nights",  hours: 8, breakMins: 30, type: "usual" },
   ],
 };
 
