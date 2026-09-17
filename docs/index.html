@@ -387,6 +387,9 @@ const DEFAULT_STATE = {
     weekStartDay: 1,            // 1 = Monday, 0 = Sunday — drives the week view, "this week" and weekly pay periods
     homePeriod: "week",         // Home card shows "this week" or "this month"
     periodStartDay: 1,          // monthly pay: the day of the month your pay period starts (1 = calendar month)
+    payDay: 0,                  // monthly: day of month you're paid (0 = not set); weekly-based: weekday 0–6 via payWeekday
+    payWeekday: -1,             // weekly / fortnightly / 4-weekly: 0 = Sun … 6 = Sat (-1 = not set)
+    payEarlyIfWeekend: true,    // if payday falls on a weekend you're paid the last working day before
     payFreq: "monthly",           // weekly | fortnightly | fourweekly | monthly
     pensionPct: 0, pensionBeforeTax: true,
     studentLoan: "none",
@@ -445,6 +448,23 @@ const MONL = ["January", "February", "March", "April", "May", "June", "July", "A
 const fmtDay  = d => `${d.getDate()} ${MON[d.getMonth()]}`;
 const fmtRange = (a, b) => a.getMonth() === b.getMonth() ? `${a.getDate()} – ${b.getDate()} ${MON[a.getMonth()]}` : `${fmtDay(a)} – ${fmtDay(b)}`;
 const fmtMonthYear = d => `${MONL[d.getMonth()]} ${d.getFullYear()}`;
+/* next payday from today, or null if not set. Monthly: day of month, pulled back to Friday if it
+   lands on a weekend (when payEarlyIfWeekend). Weekly-based: next occurrence of the pay weekday. */
+function nextPayday() {
+  const p = S.profile, t = today();
+  if (p.payFreq === "monthly") {
+    if (!(p.payDay > 0)) return null;
+    for (let i = 0; i < 3; i++) {
+      const m = addMonths(monthStart(t), i);
+      let d = new Date(m.getFullYear(), m.getMonth(), Math.min(p.payDay, monthEnd(m).getDate()));
+      if (p.payEarlyIfWeekend !== false) { if (d.getDay() === 6) d = addDays(d, -1); else if (d.getDay() === 0) d = addDays(d, -2); }
+      if (d >= t) return d;
+    }
+    return null;
+  }
+  if (!(p.payWeekday >= 0)) return null;
+  return addDays(t, (p.payWeekday - t.getDay() + 7) % 7);
+}
 const fmtPeriod = per => per.calendar ? fmtMonthYear(per.start) : `${fmtRange(per.start, per.end)} ${per.end.getFullYear()}`;
 const fmtLong = d => `${DAYS[(d.getDay() + 6) % 7]} ${d.getDate()} ${MON[d.getMonth()]}`;
 const monthLabel = d => `${MON[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
@@ -679,6 +699,8 @@ function renderHome() {
     <div class="screen-head">
       <div><h1>${greeting()}</h1><div class="sub">${isMonth ? (cur.calendar ? fmtMonthYear(today()) : `Pay month ${fmtRange(cur.start, cur.end)}`) : `Week of ${fmtRange(ws, addDays(ws, 6))}`}</div></div>
     </div>
+    ${(() => { const pd = nextPayday(); if (!pd) return ""; const n = Math.round((pd - today()) / 864e5);
+      return `<div class="note" style="margin:-8px 0 14px;display:flex;justify-content:space-between;align-items:center"><span>💸 Payday <b>${fmtLong(pd)}</b></span><span class="${n === 0 ? "green" : ""}"><b>${n === 0 ? "today!" : n === 1 ? "tomorrow" : `in ${n} days`}</b></span></div>`; })()}
 
     <div class="card accent">
       <div class="card-title"><h2>This ${periodName}</h2><div class="seg mini" data-seg="homePeriod"><button type="button" data-v="week" class="${isMonth ? "" : "on"}">Week</button><button type="button" data-v="month" class="${isMonth ? "on" : ""}">Month</button></div></div>
@@ -1162,6 +1184,11 @@ function renderSettings() {
       ${p.payFreq === "monthly" ? `<div class="field"><label>Pay month starts on day</label>
         <div class="input-wrap"><input class="input" type="number" inputmode="numeric" min="1" max="28" step="1" value="${p.periodStartDay || 1}" data-bind="profile.periodStartDay" data-type="int" /><span class="suffix">of the month</span></div>
         <div class="hint">Leave at 1 if you're paid for the calendar month. Put 26 if your pay runs from the 26th to the 25th, for example. "This month" on Home and the payslip check both follow it.</div></div>` : ""}
+      ${p.payFreq === "monthly" ? `<div class="field"><label>Payday (day of the month)</label>
+        <div class="input-wrap"><input class="input" type="number" inputmode="numeric" min="0" max="31" step="1" value="${p.payDay || ""}" placeholder="e.g. 20" data-bind="profile.payDay" data-type="int0" /><span class="suffix">of the month</span></div></div>
+        <div class="toggle" style="margin:-4px 0 12px"><div><div class="t-lbl">Paid early if it's a weekend</div><div class="t-sub">Last working day before instead.</div></div>
+          <label class="switch"><input type="checkbox" ${p.payEarlyIfWeekend !== false ? "checked" : ""} data-bind="profile.payEarlyIfWeekend" data-type="bool" /><span></span></label></div>`
+      : `<div class="field"><label>Payday</label><select class="input" data-bind="profile.payWeekday" data-type="int0"><option value="-1" ${p.payWeekday < 0 ? "selected" : ""}>Not set</option>${[1, 2, 3, 4, 5, 6, 0].map(d => `<option value="${d}" ${p.payWeekday === d ? "selected" : ""}>${["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][d]}</option>`).join("")}</select></div>`}
       <div class="field"><label>Week starts on</label>${segHTML("weekStart", [{ v: 1, t: "Monday" }, { v: 0, t: "Sunday" }], p.weekStartDay === 0 ? 0 : 1)}
         <div class="hint">Sets the Shifts week, "this week" on Home and weekly pay periods. Pick Sunday if your nights run Sunday to Thursday.</div></div>
       <div class="field"><label>Shift types</label><div class="chips">${S.presets.map(pr => `<span class="chip sm">${esc(pr.name)} ${hrs(presetPaid(pr))}h</span>`).join("")}<button class="chip sm dashed" data-act="edit-presets">✎ Edit</button></div></div>
@@ -1410,7 +1437,8 @@ document.addEventListener("input", ev => {
   const path = el.dataset.bind;
   if (!path) return;
   const type = el.dataset.type || "number";
-  let val = type === "bool" ? el.checked : type === "string" ? el.value : type === "int" ? Math.max(1, parseInt(el.value) || 1) : num(el.value);
+  let val = type === "bool" ? el.checked : type === "string" ? el.value : type === "int" ? Math.max(1, parseInt(el.value) || 1) : type === "int0" ? (parseInt(el.value) || 0) : num(el.value);
+  if (path === "profile.payDay") val = Math.min(31, Math.max(0, val));
   if (path === "profile.periodStartDay") { val = Math.min(28, val); ui.payslipEnd = null; }
   const keepRate = path === "profile.hourly" && S.profile.shiftMode === "rate" && S.profile.shiftPct > 0 ? shiftRate(S.profile) : null;
   setPath(path, val); save();

@@ -205,6 +205,11 @@ const server = http.createServer((req, res) => {
     console.log("   5 pay weeks →", hrs.replace(/\s+/g, " "));
     await page.click('[data-seg="homePeriod"] [data-v="week"]');
     await page.click('[data-go="settings"]'); await page.fill('[data-bind="profile.periodStartDay"]', "1");
+    await page.fill('[data-bind="profile.payDay"]', "20"); await page.waitForTimeout(100);
+    await page.click('[data-go="home"]');
+    const pay = await text('[data-screen="home"] .note'); if (!pay.startsWith("💸 Payday")) throw new Error("no payday line: " + pay);
+    if (/\b(Sat|Sun)\b/.test(pay)) throw new Error("payday on a weekend: " + pay);
+    console.log("   " + pay.replace(/\s+/g, " "));
   });
   await step("persists across reload", async () => {
     await page.reload();
