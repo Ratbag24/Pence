@@ -46,6 +46,8 @@ Or open **Actions → Build apps → Run workflow**. Each run uploads three arti
 | `android-release` | `app-release.aab` + `.apk` | Upload the `.aab` to Google Play |
 | `ios-archive` | `.xcarchive` (+ `.ipa` when signing secrets are set) | Upload the `.ipa` to App Store Connect |
 
+Every run also publishes the same files to a **GitHub Release** for plain download links: a version tag gets its own release, and a manual run refreshes the rolling **[latest-build](https://github.com/Ratbag24/Pence/releases/tag/latest-build)** pre-release — so the newest APK is always at `https://github.com/Ratbag24/Pence/releases/latest-build` for installing on a phone.
+
 Without any secrets the workflow still runs; the Android release is unsigned and iOS produces an unsigned archive. To get store-ready packages, add the secrets below under **Settings → Secrets and variables → Actions**.
 
 ### One-time setup: Google Play
