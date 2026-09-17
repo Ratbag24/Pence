@@ -736,7 +736,9 @@ function renderShifts() {
               </div>
               <span class="num muted">${money(shiftGross(s, p))}</span>
             </div>`).join("")}
-          <div class="chips quick">${S.presets.map(pr => `<button class="chip sm" data-act="quick-shift" data-date="${k}" data-preset="${pr.id}">${esc(pr.name)} <span class="muted">${hrs(presetPaid(pr))}h</span></button>`).join("")}<button class="chip sm dashed" data-act="add-shift" data-date="${k}" aria-label="Add other shift">＋ Other</button></div>
+          ${list.length
+            ? `<div class="chips quick"><button class="chip sm dashed" data-act="add-shift" data-date="${k}">＋ Add another</button></div>`
+            : `<div class="chips quick">${S.presets.map(pr => `<button class="chip sm" data-act="quick-shift" data-date="${k}" data-preset="${pr.id}">${esc(pr.name)} <span class="muted">${hrs(presetPaid(pr))}h</span></button>`).join("")}<button class="chip sm dashed" data-act="add-shift" data-date="${k}" aria-label="Add other shift">＋ Other</button></div>`}
         </div>
       </div>`);
   }
