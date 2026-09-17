@@ -51,7 +51,8 @@ jobs:
           cache: npm
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 21 }
-      - uses: android-actions/setup-android@v3
+      # ubuntu-latest already has the Android SDK installed with ANDROID_HOME set;
+      # Gradle downloads any missing platform/build-tools itself.
       - uses: gradle/actions/setup-gradle@v4
 
       - run: npm ci
