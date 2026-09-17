@@ -157,6 +157,9 @@
       padding: 7px 13px; font-size: .85rem; font-weight: 600; cursor: pointer; font-family: inherit;
     }
     .chip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+    .chip.sm { padding: 5px 10px; font-size: .78rem; }
+    .chip.dashed { border-style: dashed; color: var(--muted); background: transparent; }
+    .chips.quick { gap: 6px; }
 
     .toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
     .toggle:last-child { border-bottom: 0; }
@@ -231,6 +234,8 @@
 
     .extra-row { display: grid; grid-template-columns: 1fr 96px 38px; gap: 8px; margin-bottom: 8px; align-items: center; }
     .extra-row select.input { grid-column: 1 / span 2; }
+    .preset-row { grid-template-columns: 1fr 72px 72px 38px; }
+    .preset-row select.input { grid-column: 1 / span 3; }
 
     .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
     .kpi { background: var(--surface2); border-radius: 10px; padding: 12px; }
@@ -375,6 +380,8 @@ const DEFAULT_STATE = {
   profile: {
     name: "",
     hourly: 12.71, shiftPct: 0, baseHours: 37.5, otHours: 0, otMult: 1.5,
+    shiftMode: "pct",           // how the shift rate is entered: "pct" on top, or "rate" £/hr
+    usualAtShiftRate: true,     // your normal hours are paid at the shift rate
     payFreq: "monthly",           // weekly | fortnightly | fourweekly | monthly
     pensionPct: 0, pensionBeforeTax: true,
     studentLoan: "none",
@@ -385,6 +392,12 @@ const DEFAULT_STATE = {
   shifts: [],      // { id, date: "YYYY-MM-DD", hours, type: standard|premium|ot, note }
   deposits: {},    // periodKey -> amount marked as saved
   checks: [],      // payslip checks { id, start, end, expectedNet, actualNet, gross }
+  presets: [       // the shifts you actually work — one tap logs them. type "usual" follows your shift-rate setting
+    { id: "earlies", name: "Earlies", hours: 8,  breakMins: 30, type: "usual" },   // hours = shift length; pay uses hours − break
+    { id: "days",    name: "Days",    hours: 12, breakMins: 0,  type: "usual" },
+    { id: "lates",   name: "Lates",   hours: 8,  breakMins: 30, type: "usual" },
+    { id: "nights",  name: "Nights",  hours: 12, breakMins: 0,  type: "usual" },
+  ],
 };
 
 /* ---------- tiny helpers ---------- */
@@ -425,7 +438,13 @@ function shiftMult(type, p) {
   return 1;
 }
 const shiftGross = (s, p) => (s.hours || 0) * (p.hourly || 0) * shiftMult(s.type, p);
-const planWeeklyGross = p => p.hourly * (1 + (p.shiftPct || 0) / 100) * (p.baseHours || 0) + p.hourly * (p.otMult || 1) * (p.otHours || 0);
+const shiftRate  = p => (p.hourly || 0) * (1 + (p.shiftPct || 0) / 100);              // £/hr on shifts
+const usualRate  = p => p.shiftPct > 0 && p.usualAtShiftRate !== false ? shiftRate(p) : (p.hourly || 0);
+const usualType  = p => p.shiftPct > 0 && p.usualAtShiftRate !== false ? "premium" : "standard";
+const presetPaid = pr => Math.max(0, (pr.hours || 0) - (pr.breakMins || 0) / 60);   // paid hours of a shift type
+const resolveType = (t, p) => t === "usual" ? usualType(p) : (t === "premium" && !(p.shiftPct > 0) ? "standard" : t);
+const shiftLabel = p => p.shiftMode === "rate" ? `Shift rate £${fmt(shiftRate(p))}` : `Premium +${fmt(p.shiftPct).replace(/\.00$/, "")}%`;
+const planWeeklyGross = p => usualRate(p) * (p.baseHours || 0) + p.hourly * (p.otMult || 1) * (p.otHours || 0);
 const monthlySavingsAmount = s => s.freq === "month" ? s.amount : s.amount * (WEEKS_PER_YEAR / MONTHS_PER_YEAR);
 const avgExtraMonthly = list => list.reduce((sum, inc) => {
   const amt = inc.amount || 0;
@@ -607,7 +626,7 @@ function renderHome() {
   const recent = S.shifts.filter(s => s.date >= toKey(addDays(ws, -56)));
   const avgShift = recent.length ? recent.reduce((a, s) => a + s.hours, 0) / recent.length : Math.min(12, Math.max(4, (p.baseHours || 37.5) / 5));
   const annualGross = plannedGross * 52;
-  const shiftGrossAmt = avgShift * p.hourly;
+  const shiftGrossAmt = avgShift * usualRate(p);
   const extraNetMonthly = calcDeductions(annualGross + shiftGrossAmt * 12, 1, p).net - calcDeductions(annualGross, 1, p).net;
   const nLever = monthsToGoal(sv.balance, monthly + extraNetMonthly / 12, sv.interestRate, sv.goal);
   const sooner = n != null && nLever != null ? n - nLever : 0;
@@ -712,12 +731,14 @@ function renderShifts() {
           ${list.map(s => `
             <div class="shift-pill" data-act="edit-shift" data-id="${s.id}">
               <div class="t"><b class="num">${hrs(s.hours)}h</b>
-                ${s.type !== "standard" ? `<span class="tag ${s.type}">${s.type === "ot" ? "OT ×" + p.otMult : "Premium"}</span>` : ""}
+                ${s.type !== "standard" ? `<span class="tag ${s.type}">${s.type === "ot" ? "OT ×" + p.otMult : p.shiftMode === "rate" ? "Shift rate" : "Premium"}</span>` : ""}
                 ${s.note ? `<span class="note">${esc(s.note)}</span>` : ""}
               </div>
               <span class="num muted">${money(shiftGross(s, p))}</span>
             </div>`).join("")}
-          <button class="add-shift" data-act="add-shift" data-date="${k}">＋ Add shift</button>
+          ${list.length
+            ? `<div class="chips quick"><button class="chip sm dashed" data-act="add-shift" data-date="${k}">＋ Add another</button></div>`
+            : `<div class="chips quick">${S.presets.map(pr => `<button class="chip sm" data-act="quick-shift" data-date="${k}" data-preset="${pr.id}">${esc(pr.name)} <span class="muted">${hrs(presetPaid(pr))}h</span></button>`).join("")}<button class="chip sm dashed" data-act="add-shift" data-date="${k}" aria-label="Add other shift">＋ Other</button></div>`}
         </div>
       </div>`);
   }
@@ -744,15 +765,18 @@ function renderShifts() {
 function shiftSheet(shift, dateKey) {
   const p = S.profile;
   const isNew = !shift;
-  const s = shift || { id: uid(), date: dateKey || toKey(today()), hours: 8, type: "standard", note: "" };
+  const s = shift || { id: uid(), date: dateKey || toKey(today()), hours: 8, breakMins: 0, type: usualType(p), note: "" };
+  const shiftLength = (s.hours || 0) + (s.breakMins || 0) / 60;
   const types = [{ v: "standard", t: "Standard" }];
-  if (p.shiftPct > 0) types.push({ v: "premium", t: `Premium +${p.shiftPct}%` });
+  if (p.shiftPct > 0) types.push({ v: "premium", t: shiftLabel(p) });
   types.push({ v: "ot", t: `Overtime ×${p.otMult}` });
   openSheet(`
     <h2>${isNew ? "Log a shift" : "Edit shift"}</h2>
+    ${S.presets.length ? `<div class="field"><label>Shift</label><div class="chips">${S.presets.map(pr => `<button type="button" class="chip" data-preset="${pr.id}">${esc(pr.name)} ${hrs(presetPaid(pr))}h</button>`).join("")}<button type="button" class="chip dashed" data-act="edit-presets" data-date="${s.date}">✎ Edit types</button></div></div>` : ""}
+    <div class="field"><label>Date</label><input class="input" type="date" id="sh-date" value="${s.date}" /></div>
     <div class="row2">
-      <div class="field"><label>Date</label><input class="input" type="date" id="sh-date" value="${s.date}" /></div>
-      <div class="field"><label>Hours</label><input class="input" type="number" inputmode="decimal" step="0.25" min="0" id="sh-hours" value="${s.hours}" autofocus /></div>
+      <div class="field"><label>Shift length (hrs)</label><input class="input" type="number" inputmode="decimal" step="0.25" min="0" id="sh-hours" value="${shiftLength}" autofocus /></div>
+      <div class="field"><label>Unpaid break (min)</label><input class="input" type="number" inputmode="numeric" step="5" min="0" id="sh-break" value="${s.breakMins || 0}" /></div>
     </div>
     <div class="chips" style="margin:-4px 0 14px">${[4, 6, 8, 10, 12].map(h => `<button type="button" class="chip" data-hours="${h}">${h}h</button>`).join("")}</div>
     <div class="field"><label>Type</label>${segHTML("sh-type", types, s.type)}</div>
@@ -764,23 +788,53 @@ function shiftSheet(shift, dateKey) {
     </div>
   `);
   const preview = () => {
-    const h = num($("#sh-hours").value), t = $('[data-seg="sh-type"] .on').dataset.v;
-    $("#sh-preview").textContent = `${h}h × £${fmt(p.hourly)}${shiftMult(t, p) !== 1 ? ` × ${shiftMult(t, p).toFixed(2)}` : ""} = £${fmt(h * p.hourly * shiftMult(t, p))} gross`;
+    const br = Math.max(0, num($("#sh-break").value)), h = Math.max(0, num($("#sh-hours").value) - br / 60), t = $('[data-seg="sh-type"] .on').dataset.v;
+    $("#sh-preview").textContent = `${hrs(h)} paid hrs${br ? ` (${hrs(num($("#sh-hours").value))}h − ${br} min break)` : ""} × £${fmt(p.hourly)}${shiftMult(t, p) !== 1 ? ` × ${shiftMult(t, p).toFixed(2)}` : ""} = £${fmt(h * p.hourly * shiftMult(t, p))} gross`;
   };
   $("#sh-hours").addEventListener("input", preview);
-  $$("#sheet .chip").forEach(c => c.addEventListener("click", () => { $("#sh-hours").value = c.dataset.hours; preview(); haptic(); }));
+  $("#sh-break").addEventListener("input", preview);
+  $$("#sheet .chip[data-hours]").forEach(c => c.addEventListener("click", () => { $("#sh-hours").value = c.dataset.hours; preview(); haptic(); }));
+  $$("#sheet .chip[data-preset]").forEach(c => c.addEventListener("click", () => {
+    const pr = S.presets.find(x => x.id === c.dataset.preset); if (!pr) return;
+    $("#sh-hours").value = pr.hours; $("#sh-break").value = pr.breakMins || 0; $("#sh-note").value = pr.name;
+    const btn = $(`[data-seg="sh-type"] [data-v="${resolveType(pr.type, p)}"]`) || $('[data-seg="sh-type"] [data-v="standard"]');
+    $$('[data-seg="sh-type"] button').forEach(x => x.classList.remove("on")); btn.classList.add("on");
+    $$("#sheet .chip[data-preset]").forEach(x => x.classList.toggle("on", x === c));
+    preview(); haptic();
+  }));
   $$('[data-seg="sh-type"] button').forEach(b => b.addEventListener("click", () => { $$('[data-seg="sh-type"] button').forEach(x => x.classList.remove("on")); b.classList.add("on"); preview(); haptic(); }));
   preview();
 }
 
+function presetsSheet(dateKey) {
+  const p = S.profile;
+  const TYPES = [["usual", "Usual rate"], ["standard", "Basic rate"], ["premium", "Shift rate"], ["ot", `Overtime ×${p.otMult}`]];
+  openSheet(`
+    <h2>Your shift types</h2>
+    <p class="hint" style="margin:-6px 0 14px">The shifts you actually work — they show as one-tap buttons on every day. Length, then unpaid break; pay is worked out on the paid hours.</p>
+    <div id="preset-list">${S.presets.map((pr, i) => `
+      <div class="extra-row preset-row">
+        <input class="input" type="text" value="${esc(pr.name)}" placeholder="e.g. Nights" data-pi="${i}" data-pk="name" maxlength="16" />
+        <div class="input-wrap"><input class="input" type="number" inputmode="decimal" step="0.25" min="0" value="${pr.hours}" data-pi="${i}" data-pk="hours" title="Shift length" /><span class="suffix">h</span></div>
+        <div class="input-wrap"><input class="input" type="number" inputmode="numeric" step="5" min="0" value="${pr.breakMins || 0}" data-pi="${i}" data-pk="breakMins" title="Unpaid break" /><span class="suffix">min</span></div>
+        <button class="btn icon danger" data-act="remove-preset" data-i="${i}" data-date="${dateKey || ""}" aria-label="Remove">✕</button>
+        <select class="input" data-pi="${i}" data-pk="type">${TYPES.map(([v, t]) => `<option value="${v}" ${pr.type === v ? "selected" : ""}>${t}</option>`).join("")}</select>
+      </div>`).join("")}</div>
+    <div class="btn-row" style="margin-top:6px">
+      <button class="btn secondary" data-act="add-preset" data-date="${dateKey || ""}">＋ Add</button>
+      <button class="btn" data-act="presets-done" data-date="${dateKey || ""}">Done</button>
+    </div>`);
+}
+
 function saveShiftFromSheet(id, isNew) {
-  const date = $("#sh-date").value, hours = num($("#sh-hours").value);
+  const date = $("#sh-date").value, breakMins = Math.max(0, Math.round(num($("#sh-break").value)));
+  const hours = Math.round((num($("#sh-hours").value) - breakMins / 60) * 100) / 100;
   if (!date) return toast("Pick a date");
-  if (hours <= 0) return toast("Enter the hours you worked");
+  if (hours <= 0) return toast("Shift length must be longer than the break");
   const type = $('[data-seg="sh-type"] .on').dataset.v;
   const note = $("#sh-note").value.trim();
-  if (isNew) S.shifts.push({ id, date, hours, type, note });
-  else { const s = S.shifts.find(x => x.id === id); Object.assign(s, { date, hours, type, note }); }
+  if (isNew) S.shifts.push({ id, date, hours, breakMins, type, note });
+  else { const s = S.shifts.find(x => x.id === id); Object.assign(s, { date, hours, breakMins, type, note }); }
   S.shifts.sort((a, b) => a.date.localeCompare(b.date));
   save(); closeSheet(); haptic("success");
   ui.shiftsWeek = weekStart(fromKey(date));
@@ -817,7 +871,7 @@ function renderPayslip() {
   const loggedHours = shifts.reduce((x, s) => x + s.hours, 0);
   const manualHours = num(ui.payslipHours);
   const usingManual = !shifts.length && manualHours > 0;
-  const gross = shifts.length ? shifts.reduce((x, s) => x + shiftGross(s, p), 0) : manualHours * p.hourly * (1 + (p.shiftPct || 0) / 100);
+  const gross = shifts.length ? shifts.reduce((x, s) => x + shiftGross(s, p), 0) : manualHours * usualRate(p);
   const d = calcDeductions(gross, per.fraction, p);
   const actual = num(ui.payslipActual);
   const diff = actual - d.net;
@@ -893,14 +947,23 @@ function renderPlan() {
       <div class="body">
         <div class="row2">
           <div class="field"><label>Hourly rate</label>${moneyInput("pl-hourly", p.hourly, 'data-bind="profile.hourly"')}</div>
-          <div class="field"><label>Shift premium (%)</label><input class="input" type="number" inputmode="decimal" step="1" min="0" value="${p.shiftPct}" data-bind="profile.shiftPct" /></div>
+          <div class="field"><label>Shift rate</label>
+            <div class="with-select">
+              ${p.shiftMode === "rate"
+                ? `<div class="input-wrap"><span class="prefix">£</span><input class="input" type="number" inputmode="decimal" step="0.01" min="0" id="pl-shiftrate" value="${p.shiftPct > 0 ? Math.round(shiftRate(p) * 100) / 100 : ""}" placeholder="${Math.round(p.hourly * 100) / 100}" /></div>`
+                : `<div class="input-wrap"><input class="input" type="number" inputmode="decimal" step="0.5" min="0" value="${p.shiftPct}" data-bind="profile.shiftPct" /><span class="suffix">%</span></div>`}
+              <select class="input" data-bind="profile.shiftMode" data-type="string" data-rerender="plan"><option value="rate" ${p.shiftMode === "rate" ? "selected" : ""}>£/hr</option><option value="pct" ${p.shiftMode !== "rate" ? "selected" : ""}>% on top</option></select>
+            </div>
+          </div>
         </div>
+        ${p.shiftPct > 0 ? `<div class="toggle" style="margin:-4px 0 12px"><div><div class="t-lbl">My usual hours are paid at the shift rate</div><div class="t-sub">${p.usualAtShiftRate !== false ? `Plans and new shifts use £${fmt(shiftRate(p))}/hr` : `Plans and new shifts use your £${fmt(p.hourly)} basic; pick "${shiftLabel(p)}" per shift`}</div></div>
+          <label class="switch"><input type="checkbox" ${p.usualAtShiftRate !== false ? "checked" : ""} data-bind="profile.usualAtShiftRate" data-type="bool" data-rerender="plan" /><span></span></label></div>` : ""}
         <div class="row3">
           <div class="field"><label>Hours / week</label><input class="input" type="number" inputmode="decimal" step="0.5" min="0" value="${p.baseHours}" data-bind="profile.baseHours" /></div>
           <div class="field"><label>OT hrs / week</label><input class="input" type="number" inputmode="decimal" step="0.5" min="0" value="${p.otHours}" data-bind="profile.otHours" /></div>
           <div class="field"><label>OT multiplier</label><input class="input" type="number" inputmode="decimal" step="0.05" min="1" value="${p.otMult}" data-bind="profile.otMult" /></div>
         </div>
-        <div class="hint">Shift premium is the uplift on your normal hours (e.g. 15 for a 15% nights rate). Overtime is paid at your rate × the multiplier.</div>
+        <div class="hint">Shift rate: either the £/hr you actually get on shifts (e.g. £26.11 when your basic is £16.11) or the % on top of basic. Overtime is paid at your basic rate × the multiplier.</div>
       </div>
     </details>
 
@@ -1062,6 +1125,7 @@ function renderSettings() {
       <div class="eyebrow">You</div>
       <div class="field"><label>Your name (for the greeting)</label><input class="input" type="text" value="${esc(p.name)}" data-bind="profile.name" data-type="string" maxlength="24" placeholder="Optional" /></div>
       <div class="field"><label>How often are you paid?</label>${segHTML("payFreq", Object.entries(PAY_FREQ).map(([v, o]) => ({ v, t: o.label.replace("Every 4 weeks", "4-weekly") })), p.payFreq)}</div>
+      <div class="field"><label>Shift types</label><div class="chips">${S.presets.map(pr => `<span class="chip sm">${esc(pr.name)} ${hrs(presetPaid(pr))}h</span>`).join("")}<button class="chip sm dashed" data-act="edit-presets">✎ Edit</button></div></div>
     </div>
 
     <div class="card">
@@ -1105,15 +1169,17 @@ function renderSettings() {
 /* =====================================================================
    ONBOARDING
    ===================================================================== */
-const ob = { step: 0, hourly: "", hours: "", payFreq: "monthly", goalLabel: "", goal: "", amount: "", freq: "week" };
+const ob = { step: 0, hourly: "", shiftRate: "", hours: "", payFreq: "monthly", goalLabel: "", goal: "", amount: "", freq: "week" };
 function renderOnboarding() {
   const el = $("#onboarding");
   el.classList.remove("hidden");
   const dots = `<div class="dots">${[0, 1, 2].map(i => `<i class="${i <= ob.step ? "on" : ""}"></i>`).join("")}</div>`;
   const steps = [
-    `<h1>What's your hourly rate?</h1><p class="lead">Just your basic rate — we'll sort overtime and shift premiums later.</p>
-     <div class="field"><div class="input-wrap"><span class="prefix">£</span><input class="input lg" type="number" inputmode="decimal" step="0.01" min="0" id="ob-hourly" value="${ob.hourly}" placeholder="${TAX_YEAR.nationalLivingWage}" autofocus /></div>
-     <div class="hint">National Living Wage is £${TAX_YEAR.nationalLivingWage} (21+).</div></div>`,
+    `<h1>What's your hourly rate?</h1><p class="lead">Your basic rate first. If you get a different rate on shifts, add that too — we'll sort overtime later.</p>
+     <div class="field"><label>Basic rate</label><div class="input-wrap"><span class="prefix">£</span><input class="input lg" type="number" inputmode="decimal" step="0.01" min="0" id="ob-hourly" value="${ob.hourly}" placeholder="${TAX_YEAR.nationalLivingWage}" autofocus /></div>
+     <div class="hint">National Living Wage is £${TAX_YEAR.nationalLivingWage} (21+).</div></div>
+     <div class="field"><label>Rate on shifts (if different)</label><div class="input-wrap"><span class="prefix">£</span><input class="input lg" type="number" inputmode="decimal" step="0.01" min="0" id="ob-shift" value="${ob.shiftRate}" placeholder="Same as basic" /></div>
+     <div class="hint">e.g. £26.11 on shift when your basic is £16.11. Leave blank if you're paid the same all the time.</div></div>`,
     `<h1>How much do you usually work?</h1><p class="lead">A typical week is fine — you can log real shifts as you go.</p>
      <div class="field"><label>Hours per week</label><div class="input-wrap"><input class="input lg" type="number" inputmode="decimal" step="0.5" min="0" id="ob-hours" value="${ob.hours}" placeholder="37.5" autofocus /><span class="suffix">hrs</span></div></div>
      <div class="field"><label>How often are you paid?</label>${segHTML("ob-freq", Object.entries(PAY_FREQ).map(([v, o]) => ({ v, t: o.label.replace("Every 4 weeks", "4-weekly") })), ob.payFreq)}</div>`,
@@ -1142,13 +1208,17 @@ function onboardingAction(a) {
   haptic();
   if (a === "skip") return finishOnboarding();
   if (a === "back") { ob.step--; return renderOnboarding(); }
-  if (ob.step === 0) { ob.hourly = $("#ob-hourly").value; if (num(ob.hourly) <= 0) return toast("Enter your hourly rate"); }
+  if (ob.step === 0) { ob.hourly = $("#ob-hourly").value; ob.shiftRate = $("#ob-shift").value; if (num(ob.hourly) <= 0) return toast("Enter your hourly rate"); if (num(ob.shiftRate) > 0 && num(ob.shiftRate) < num(ob.hourly)) return toast("Shift rate should be at least your basic rate"); }
   if (ob.step === 1) { ob.hours = $("#ob-hours").value; if (num(ob.hours) <= 0) return toast("Enter your usual hours"); }
   if (ob.step === 2) { ob.goalLabel = $("#ob-label").value; ob.goal = $("#ob-goal").value; ob.amount = $("#ob-amount").value; ob.freq = $("#ob-sfreq").value; return finishOnboarding(); }
   ob.step++; renderOnboarding();
 }
 function finishOnboarding() {
   if (num(ob.hourly) > 0) S.profile.hourly = num(ob.hourly);
+  if (num(ob.shiftRate) > num(ob.hourly) && num(ob.hourly) > 0) {
+    S.profile.shiftPct = (num(ob.shiftRate) / num(ob.hourly) - 1) * 100;
+    S.profile.shiftMode = "rate"; S.profile.usualAtShiftRate = true;
+  }
   if (num(ob.hours) > 0) S.profile.baseHours = num(ob.hours);
   S.profile.payFreq = ob.payFreq;
   if (ob.goalLabel.trim()) S.savings.goalLabel = ob.goalLabel.trim();
@@ -1205,6 +1275,18 @@ document.addEventListener("click", ev => {
     case "edit-shift":    haptic(); shiftSheet(S.shifts.find(s => s.id === el.dataset.id)); break;
     case "save-shift":    saveShiftFromSheet(el.dataset.id, el.dataset.new === "true"); break;
     case "delete-shift":  S.shifts = S.shifts.filter(s => s.id !== el.dataset.id); save(); closeSheet(); haptic("medium"); render(); toast("Shift deleted"); break;
+    case "quick-shift": {
+      const pr = S.presets.find(x => x.id === el.dataset.preset); if (!pr) break;
+      S.shifts.push({ id: uid(), date: el.dataset.date, hours: presetPaid(pr), breakMins: pr.breakMins || 0, type: resolveType(pr.type, S.profile), note: pr.name });
+      S.shifts.sort((a, b) => a.date.localeCompare(b.date)); save(); haptic("success"); renderShifts(); toast(`${pr.name} logged`); break;
+    }
+    case "edit-presets":  haptic(); presetsSheet(el.dataset.date); break;
+    case "add-preset":    haptic(); S.presets.push({ id: uid(), name: "", hours: 8, type: "usual" }); save(); presetsSheet(el.dataset.date); $$("#preset-list input[type=text]").pop()?.focus(); break;
+    case "remove-preset": haptic(); S.presets.splice(+el.dataset.i, 1); save(); presetsSheet(el.dataset.date); break;
+    case "presets-done":
+      S.presets = S.presets.filter(x => x.name.trim() && presetPaid(x) > 0); save(); closeSheet(); haptic("success");
+      if (el.dataset.date) shiftSheet(null, el.dataset.date); else render();
+      break;
     case "week-prev":     haptic(); ui.shiftsWeek = addDays(ui.shiftsWeek, -7); renderShifts(); break;
     case "week-next":     haptic(); ui.shiftsWeek = addDays(ui.shiftsWeek, 7); renderShifts(); break;
     case "week-today":    haptic(); ui.shiftsWeek = weekStart(today()); renderShifts(); break;
@@ -1222,7 +1304,7 @@ document.addEventListener("click", ev => {
       const per = periodBounds(ui.payslipEnd), p = S.profile;
       const a = toKey(per.start), b = toKey(per.end);
       const shifts = S.shifts.filter(s => s.date >= a && s.date <= b);
-      const gross = shifts.length ? shifts.reduce((x, s) => x + shiftGross(s, p), 0) : num(ui.payslipHours) * p.hourly * (1 + (p.shiftPct || 0) / 100);
+      const gross = shifts.length ? shifts.reduce((x, s) => x + shiftGross(s, p), 0) : num(ui.payslipHours) * usualRate(p);
       const d = calcDeductions(gross, per.fraction, p);
       S.checks = S.checks.filter(c => c.label !== per.label);
       S.checks.push({ id: uid(), label: per.label, start: a, end: b, gross, expectedNet: d.net, actualNet: num(ui.payslipActual) });
@@ -1265,17 +1347,30 @@ document.addEventListener("input", ev => {
   if (el.id === "ps-hours") { ui.payslipHours = el.value; clearTimeout(planTimer); planTimer = setTimeout(() => { const v = el.value; renderPayslip(); const n = $("#ps-hours"); if (n) { n.focus(); n.value = v; } }, 350); return; }
   if (el.id === "ps-actual") { ui.payslipActual = el.value; clearTimeout(planTimer); planTimer = setTimeout(() => { const v = el.value; renderPayslip(); const n = $("#ps-actual"); if (n) { n.focus(); n.value = v; } }, 350); return; }
 
+  if (el.dataset.pi !== undefined) {
+    const pr = S.presets[+el.dataset.pi]; if (!pr) return;
+    pr[el.dataset.pk] = el.dataset.pk === "hours" ? num(el.value) : el.dataset.pk === "breakMins" ? Math.max(0, Math.round(num(el.value))) : el.value;
+    save(); return;
+  }
   if (el.dataset.extra !== undefined) {
     const inc = S.extraIncomes[+el.dataset.extra]; if (!inc) return;
     const k = el.dataset.k;
     inc[k] = k === "label" ? el.value : k === "freqMonths" ? parseInt(el.value) : num(el.value);
     save(); renderPlanResults(); return;
   }
+  if (el.id === "pl-shiftrate") {
+    const r = num(el.value), h = S.profile.hourly || 0;
+    S.profile.shiftPct = r > 0 && h > 0 ? Math.max(0, (r / h - 1) * 100) : 0;
+    save(); clearTimeout(planTimer); planTimer = setTimeout(renderPlanResults, 250); return;
+  }
   const path = el.dataset.bind;
   if (!path) return;
   const type = el.dataset.type || "number";
   const val = type === "bool" ? el.checked : type === "string" ? el.value : type === "int" ? Math.max(1, parseInt(el.value) || 1) : num(el.value);
+  const keepRate = path === "profile.hourly" && S.profile.shiftMode === "rate" && S.profile.shiftPct > 0 ? shiftRate(S.profile) : null;
   setPath(path, val); save();
+  if (keepRate !== null && val > 0) { S.profile.shiftPct = Math.max(0, (keepRate / val - 1) * 100); save(); }
+  if (el.dataset.rerender === "plan") { renderPlan(); return; }
   if (ui.screen === "plan") { clearTimeout(planTimer); planTimer = setTimeout(renderPlanResults, 250); }
 });
 
