@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://ratbag24.github.io/Pence/sitemap.xml

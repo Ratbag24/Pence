@@ -10,6 +10,7 @@ const ASSETS = [
   "./icon-192.png",
   "./icon-512.png",
   "./privacy.html",
+  "./tax.js",
   "./vendor/chart.umd.min.js",
 ];
 

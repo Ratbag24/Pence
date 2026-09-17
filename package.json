@@ -6,6 +6,7 @@
   "scripts": {
     "test:e2e": "node scripts/e2e.js",
     "screenshots": "node scripts/screenshots.js",
+    "build:rates": "node scripts/build-rates.js",
     "sync": "cap sync",
     "icons": "capacitor-assets generate --android --ios --iconBackgroundColor '#1a1d27' --iconBackgroundColorDark '#1a1d27' --splashBackgroundColor '#0f1117' --splashBackgroundColorDark '#0f1117'",
     "open:android": "cap open android",

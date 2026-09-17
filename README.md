@@ -13,16 +13,19 @@ The whole app is one file, `docs/index.html` (HTML + CSS + vanilla JS, no build 
 | Path | What |
 |---|---|
 | `docs/` | The web app — GitHub Pages serves this folder |
+| `docs/tax.js` | The UK tax engine, shared by the app and the page generator |
+| `docs/rates/` | Generated "£X an hour after tax" landing pages (SEO → app) |
 | `android/`, `ios/` | Native Capacitor projects (committed, as Capacitor recommends) |
 | `assets/` | Source icon + splash used to generate every native icon size |
 | `store/` | Store listing copy and generated screenshots |
-| `scripts/` | End-to-end test and screenshot generator (Playwright) |
+| `scripts/` | End-to-end test, screenshot and rate-page generators (Playwright / Node) |
 | `.github/workflows/build-apps.yml` | Builds the Android `.aab`/`.apk` and iOS `.ipa` |
 
 ```bash
 npm install
 npm run test:e2e      # drives the app in headless Chromium, checks the tax maths
-npm run screenshots   # regenerates store/screenshots/
+npm run screenshots   # regenerates store/screenshots/ (raw + captioned)
+npm run build:rates   # regenerates docs/rates/, sitemap.xml and robots.txt
 npm run sync          # copies docs/ into android/ and ios/ (run after changing the web app)
 ```
 

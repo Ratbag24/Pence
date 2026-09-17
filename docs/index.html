@@ -15,6 +15,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <script src="vendor/chart.umd.min.js"></script>
+  <script src="tax.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -357,30 +358,7 @@ const APP_VERSION = "2.0.0";
 const STORE_KEY   = "pence_v2";
 const WEEKS_PER_YEAR = 52, MONTHS_PER_YEAR = 12;
 
-/* ---------- UK tax year constants ----------
-   2026/27. Income Tax and NI thresholds are frozen until April 2028, so
-   these match 2024/25 → 2027/28. Bands are on taxable income (after the
-   personal allowance). Student-loan thresholds move each April — check
-   gov.uk when a new tax year starts. Rates are for England, Wales & NI
-   (Scotland has different income-tax bands). */
-const TAX_YEAR = {
-  label: "2026/27",
-  personalAllowance: 12570,
-  paTaperStart: 100000,          // PA drops £1 per £2 earned above this
-  basicBand: 37700,              // 20% on the first £37,700 of taxable income
-  additionalThreshold: 125140,   // 45% on taxable income above this
-  rates: { basic: 0.20, higher: 0.40, additional: 0.45 },
-  ni: { pt: 12570, uel: 50270, main: 0.08, upper: 0.02 },
-  pension: { lower: 6240, upper: 50270 },  // auto-enrolment qualifying earnings
-  studentLoan: {
-    plan1: { label: "Plan 1",       threshold: 26065, rate: 0.09 },
-    plan2: { label: "Plan 2",       threshold: 28470, rate: 0.09 },
-    plan4: { label: "Plan 4",       threshold: 32745, rate: 0.09 },
-    plan5: { label: "Plan 5",       threshold: 25000, rate: 0.09 },
-    pg:    { label: "Postgraduate", threshold: 21000, rate: 0.06 },
-  },
-  nationalLivingWage: 12.71,
-};
+/* TAX_YEAR, PAY_FREQ and calcDeductions live in tax.js (shared with the page generator). */
 
 const EXP_CATEGORIES = [
   { id: "rent",      label: "Rent / mortgage", color: "#4f8ef7" },
@@ -440,56 +418,6 @@ const fmtRange = (a, b) => a.getMonth() === b.getMonth() ? `${a.getDate()} – $
 const fmtMonthYear = d => `${MONL[d.getMonth()]} ${d.getFullYear()}`;
 const fmtLong = d => `${DAYS[(d.getDay() + 6) % 7]} ${d.getDate()} ${MON[d.getMonth()]}`;
 const monthLabel = d => `${MON[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
-
-/* =====================================================================
-   TAX ENGINE
-   calcDeductions(gross, fraction, profile)
-   fraction = share of the tax year the pay covers (1 = annual, 1/52 = a
-   week, 1/12 = a month). Thresholds are scaled by it — the standard
-   non-cumulative ("week 1 / month 1") basis, which is what a payslip
-   check needs. NI is genuinely per-period so that part is exact.
-   ===================================================================== */
-function calcDeductions(gross, fraction, p) {
-  const T = TAX_YEAR, f = fraction;
-  gross = Math.max(0, gross);
-
-  let pension = 0;
-  if (p.pensionPct > 0) {
-    const lower = T.pension.lower * f, upper = T.pension.upper * f;
-    pension = Math.max(0, Math.min(gross, upper) - lower) * (p.pensionPct / 100);
-  }
-  const taxablePay = p.pensionBeforeTax === false ? gross : gross - pension;
-
-  let pa = T.personalAllowance;
-  const annualised = taxablePay / f;
-  if (annualised > T.paTaperStart) pa = Math.max(0, pa - (annualised - T.paTaperStart) / 2);
-  pa *= f;
-
-  const ti = Math.max(0, taxablePay - pa);
-  const basicTop = T.basicBand * f, addTop = T.additionalThreshold * f;
-  const tax = Math.min(ti, basicTop) * T.rates.basic
-            + Math.max(0, Math.min(ti, addTop) - basicTop) * T.rates.higher
-            + Math.max(0, ti - addTop) * T.rates.additional;
-
-  const pt = T.ni.pt * f, uel = T.ni.uel * f;
-  let ni = 0;
-  if (gross > pt)  ni += (Math.min(gross, uel) - pt) * T.ni.main;
-  if (gross > uel) ni += (gross - uel) * T.ni.upper;
-
-  let loan = 0;
-  const sl = T.studentLoan[p.studentLoan];
-  if (sl) loan = Math.max(0, gross - sl.threshold * f) * sl.rate;
-
-  const net = gross - tax - ni - pension - loan;
-  return { gross, tax, ni, pension, loan, net, total: tax + ni + pension + loan };
-}
-
-const PAY_FREQ = {
-  weekly:     { label: "Weekly",     weeks: 1, fraction: 1 / 52 },
-  fortnightly:{ label: "Fortnightly",weeks: 2, fraction: 2 / 52 },
-  fourweekly: { label: "Every 4 weeks", weeks: 4, fraction: 4 / 52 },
-  monthly:    { label: "Monthly",    weeks: null, fraction: 1 / 12 },
-};
 
 function shiftMult(type, p) {
   if (type === "premium") return 1 + (p.shiftPct || 0) / 100;
